@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Reportes generados (pueden contener datos sensibles)
+reports/
+*.csv
+
+# Credenciales
+.env
+*.env
+config/secrets.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
