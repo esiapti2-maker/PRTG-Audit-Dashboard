@@ -1,118 +1,140 @@
 # PRTG Audit Dashboard
 
-Dashboard de auditoría para **PRTG Network Monitor** — aplicación HTML estática de una sola página complementada con un script Python CLI para escenarios multi-sitio o donde el navegador tenga restricciones de CORS.
+Herramienta de auditoría interna para instancias PRTG Network Monitor.
+Genera reportes CSV con hallazgos de seguridad y operación listos para revisión.
 
-## Qué incluye el repositorio
+---
+
+## Estructura del Proyecto
+
+Arquitectura **Híbrida Tipo + Feature** — combina la claridad de capas con la escalabilidad por funcionalidades:
 
 ```
 PRTG-Audit-Dashboard/
-├── prtg-audit-dashboard.html   # Dashboard HTML estático ← AQUÍ
+├── src/
+│   ├── core/                   # Lógica de negocio compartida
+│   │   ├── client.py           #   Cliente HTTP para la API REST de PRTG
+│   │   ├── auth.py             #   Manejo de autenticación (password / passhash)
+│   │   └── exceptions.py       #   Excepciones personalizadas
+│   │
+│   ├── features/               # Módulos independientes por funcionalidad
+│   │   ├── devices/
+│   │   │   └── audit.py        #   Inventario de dispositivos
+│   │   ├── sensors/
+│   │   │   └── audit.py        #   Down, Warning, Sin umbrales, Pausados
+│   │   ├── users/
+│   │   │   └── audit.py        #   Usuarios y permisos
+│   │   └── notifications/
+│   │       └── audit.py        #   Alertas activas vs pausadas
+│   │
+│   └── shared/                 # Código reutilizable por toda la app
+│       ├── exporter.py         #   Exportación a CSV
+│       └── logger.py           #   Resúmenes y mensajes de consola
+│
 ├── scripts/
-│   └── prtg_audit.py           # Script CLI Python para auditoría
-├── requirements.txt
+│   └── prtg_audit.py           # Entry point CLI (orquestador)
+│
+├── dashboard/
+│   └── prtg-audit-dashboard.html  # Dashboard interactivo (HTML)
+│
+├── .env.example                # Plantilla de variables de entorno
 ├── .gitignore
+├── requirements.txt
 └── README.md
 ```
 
-## Dashboard HTML
+---
 
-### Características
-
-- **KPIs automáticos** — dispositivos, sensores OK/Down, sensores sin umbrales y Score de Auditoría (0–100 %)
-- **Sensores** — tabla completa con filtro por estado y búsqueda en tiempo real
-- **Umbrales** — sensores con `limitmode=0` o sin `LimitMaxError`/`LimitMaxWarning` configurados
-- **Usuarios & Accesos** — clasificación automática de riesgo (Alto/Medio/Bajo)
-- **Notificaciones** — detecta notificaciones inactivas o sin disparadores
-- **Checklist de auditoría** — 8 verificaciones automáticas con semáforo Cumple/Revisar
-- **Scripts API** — ejemplos listos en cURL y Python
-- **Exportación CSV** — hallazgos descargables directamente desde el navegador
-- **Modo oscuro/claro** — toggle manual, respeta preferencia del sistema
-- **Responsive** — funciona en móvil y desktop
-
-### Uso
-
-1. Abre `prtg-audit-dashboard.html` en cualquier navegador moderno.
-2. Haz clic en **"Demo"** para explorar la interfaz sin conectarte a PRTG.
-3. Para conectar a tu PRTG real: ingresa `Host`, `Usuario API` y `Passhash`.
-   > El passhash se consulta en PRTG: **Setup → My Account → Show Passhash**.
-4. Haz clic en **"Conectar y auditar"**.
-5. Usa **"Exportar CSV"** para generar el reporte de hallazgos.
-
-### Nota sobre CORS
-
-La API HTTP de PRTG es stateless y puede consultarse con `username + passhash` o con `apitoken`. La conexión directa desde el navegador puede generar errores CORS si PRTG no tiene configurado el encabezado `Access-Control-Allow-Origin`. En ese caso, usa el script Python del repositorio, que no tiene esta limitación.
-
-## Script Python CLI
-
-### Instalación
+## Instalación
 
 ```bash
+git clone https://github.com/esiapti2-maker/PRTG-Audit-Dashboard
+cd PRTG-Audit-Dashboard
 pip install -r requirements.txt
 ```
 
-### Ejemplo básico
+---
+
+## Uso
+
+### Auditoría de un solo sitio
 
 ```bash
+# Con passhash (recomendado — Setup → My Account → Passhash en PRTG)
 python scripts/prtg_audit.py \
-  --host https://prtg.miempresa.com \
-  --user auditor \
+  --host https://prtg.empresa.com \
+  --user admin \
   --passhash TU_PASSHASH \
-  --site-name Corporativo \
+  --site-name Guadalajara \
   --output ./reportes
+
+# Con contraseña en texto plano
+python scripts/prtg_audit.py \
+  --host https://prtg.empresa.com \
+  --user admin \
+  --pass MiPassword \
+  --site-name Monterrey
 ```
 
-### Multi-sitio
+### Auditoría multi-sitio
 
-Edita la lista `SITES` en `scripts/prtg_audit.py`:
-
-```python
-SITES = [
-    {
-        "name": "Sitio-GDL",
-        "host": "https://prtg-gdl.empresa.com",
-        "username": "auditor",
-        "passhash": "1234567890",
-    },
-    {
-        "name": "Sitio-DR",
-        "host": "https://prtg-mty.empresa.com",
-        "username": "auditor",
-        "passhash": "0987654321",
-    },
-]
-```
+Edita la sección `SITES = [...]` en `scripts/prtg_audit.py` y ejecuta:
 
 ```bash
 python scripts/prtg_audit.py --multi-site --output ./reportes
 ```
 
-## Hallazgos cubiertos
+---
 
-| Hallazgo | Descripción | Acción recomendada |
+## Módulos de Auditoría
+
+| Feature | Archivo | Hallazgo |
 |---|---|---|
-| Sensor Down | Estado `Down` activo | Investigar causa raíz |
-| Sensor Warning | Estado `Warning` activo | Revisar umbrales y dispositivo |
-| Sin umbrales | `limitmode=0` o sin `LimitMaxError` | Definir límites de alerta |
-| Sensor pausado | Pausa sin justificación documentada | Verificar o eliminar |
-| Usuario alto riesgo | Cuenta admin o heredada | Revisar contraseñas y roles |
-| Notificación inactiva | Sin disparador o desactivada | Activar o documentar excepción |
+| **Dispositivos** | `features/devices/audit.py` | Inventario completo |
+| **Sensores Down/Warning** | `features/sensors/audit.py` | CRÍTICO / ADVERTENCIA |
+| **Sensores sin umbrales** | `features/sensors/audit.py` | RIESGO silencioso |
+| **Sensores pausados** | `features/sensors/audit.py` | REVISIÓN >30 días |
+| **Usuarios** | `features/users/audit.py` | Contraseñas por defecto |
+| **Notificaciones** | `features/notifications/audit.py` | Alertas pausadas |
+
+---
+
+## Reporte CSV
+
+Cada ejecución genera: `reports/prtg_audit_{sitio}_{YYYYMMDD_HHMMSS}.csv`
+
+| Columna | Descripción |
+|---|---|
+| `sitio` | Nombre del sitio auditado |
+| `tipo` | Categoría del hallazgo |
+| `id` | ID del objeto en PRTG |
+| `nombre` | Nombre del sensor/dispositivo |
+| `dispositivo_host` | IP o hostname del dispositivo |
+| `grupo` | Grupo o ubicación en PRTG |
+| `estado` | Estado actual |
+| `mensaje` | Mensaje de PRTG |
+| `prioridad` | Prioridad configurada (1-5) |
+| `ultimo_valor` | Último valor registrado |
+| `hallazgo` | Descripción del hallazgo para auditoría |
+
+---
+
+## Extender el Proyecto
+
+Para agregar un nuevo módulo de auditoría (ej. `groups`):
+
+```
+src/features/groups/
+├── __init__.py
+└── audit.py      ← clase GroupAudit con método run()
+```
+
+Luego importarlo en `scripts/prtg_audit.py` y agregarlo al orquestador `run_audit()`.
+
+---
 
 ## Seguridad
 
-> ⚠️ Nunca subas credenciales al repositorio. Usa variables de entorno o un archivo `.env` (ya incluido en `.gitignore`).
-
-```bash
-export PRTG_HOST=https://prtg.empresa.com
-export PRTG_USER=auditor
-export PRTG_PASSHASH=1234567890
-
-python scripts/prtg_audit.py \
-  --host $PRTG_HOST \
-  --user $PRTG_USER \
-  --passhash $PRTG_PASSHASH
-```
-
-## Referencias API PRTG
-
-- [HTTP API Manual](https://www.paessler.com/manuals/prtg/http_api)
-- [My Account / Passhash](https://www.paessler.com/manuals/prtg/my_account)
+- Usar **passhash** en lugar de contraseña en texto plano
+- El `.gitignore` excluye archivos `.env`, reportes CSV y credenciales
+- Las llamadas a la API usan `verify=False` para PRTG con certificados auto-firmados
