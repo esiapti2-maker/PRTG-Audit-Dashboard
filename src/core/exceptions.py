@@ -1,25 +1,21 @@
 """
-core/exceptions.py
-==================
-Excepciones personalizadas para el cliente PRTG.
+src/core/exceptions.py
+======================
+Jerarquía de excepciones propias del proyecto.
 """
 
 
 class PRTGError(Exception):
-    """Excepción base para todos los errores de PRTG Audit."""
-    pass
-
-
-class PRTGConnectionError(PRTGError):
-    """No se pudo establecer conexión con el servidor PRTG."""
-    pass
+    """Base para todos los errores del proyecto."""
 
 
 class PRTGAuthError(PRTGError):
-    """Error de autenticación — usuario, password o passhash inválidos."""
-    pass
+    """Credenciales inválidas o ausentes."""
 
 
-class PRTGTimeoutError(PRTGError):
-    """La request al servidor PRTG excedió el tiempo de espera."""
-    pass
+class PRTGConnectionError(PRTGError):
+    """No se pudo conectar al servidor PRTG."""
+
+
+class PRTGDataError(PRTGError):
+    """La API devolvió datos inesperados o incompletos."""

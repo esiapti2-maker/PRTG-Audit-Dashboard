@@ -1,72 +1,76 @@
 """
-core/client.py
-==============
-Cliente base HTTP para la API REST de PRTG.
-Todas las features usan esta clase para realizar llamadas.
+src/core/client.py
+==================
+Cliente HTTP base para la API JSON de PRTG.
+Toda comunicación con el servidor pasa por aquí.
 """
-
-import sys
 import requests
-import urllib3
-
-from .auth import build_auth_params
-from .exceptions import PRTGConnectionError, PRTGAuthError, PRTGTimeoutError
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from urllib.parse import urljoin
+from .exceptions import PRTGAuthError, PRTGConnectionError
 
 
 class PRTGClient:
     """
-    Cliente HTTP para la API de PRTG.
-    Encapsula autenticación, manejo de errores y llamadas GET.
+    Encapsula las credenciales y realiza GET requests a la API de PRTG.
+
+    Args:
+        host:      URL base, ej. https://prtg.empresa.com
+        username:  Usuario de PRTG
+        password:  Contraseña en texto plano  (opcional si usas passhash)
+        passhash:  Hash desde Setup → My Account → Passhash  (recomendado)
     """
 
-    def __init__(self, host: str, username: str, password: str = None, passhash: str = None):
-        """
-        Args:
-            host:     URL base del servidor PRTG (ej: https://prtg.empresa.com)
-            username: Usuario de PRTG
-            password: Contraseña en texto plano (usar passhash es más seguro)
-            passhash: Hash de contraseña desde Setup → My Account → Passhash
-        """
-        self.host = host.rstrip("/")
-        self.base_url = f"{self.host}/api"
-        self._auth = build_auth_params(username, password, passhash)
+    def __init__(self, host: str, username: str,
+                 password: str = None, passhash: str = None):
+        if not host or not username:
+            raise PRTGAuthError("Se requieren host y username.")
+        if not password and not passhash:
+            raise PRTGAuthError("Debes proporcionar password o passhash.")
+
+        self.base_url = host.rstrip("/")
+        self.auth = {
+            "username": username,
+            "password": password or "",
+            "passhash": passhash or "",
+        }
+        self.session = requests.Session()
+        self.session.verify = False  # entornos internos con cert autofirmado
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _auth_params(self) -> dict:
+        """Retorna los parámetros de autenticación para cada request."""
+        params = {"username": self.auth["username"]}
+        if self.auth["passhash"]:
+            params["passhash"] = self.auth["passhash"]
+        else:
+            params["password"] = self.auth["password"]
+        return params
 
     def get(self, endpoint: str, extra_params: dict = None) -> dict:
         """
-        Realiza una llamada GET a la API de PRTG.
+        GET a la API JSON de PRTG.
 
         Args:
-            endpoint:     Endpoint relativo (ej: "table.json")
-            extra_params: Parámetros adicionales de la query
+            endpoint:     Ruta relativa, ej. "/api/table.json"
+            extra_params: Parámetros adicionales de la query string
 
         Returns:
             Respuesta JSON como dict
 
         Raises:
-            PRTGConnectionError: Si no se puede conectar al servidor
-            PRTGTimeoutError:    Si la request excede el timeout
-            PRTGAuthError:       Si el servidor devuelve 401/403
+            PRTGConnectionError: Si no se puede conectar o el servidor retorna error.
         """
-        params = dict(self._auth)
-        if extra_params:
-            params.update(extra_params)
-
-        url = f"{self.base_url}/{endpoint}"
+        url = urljoin(self.base_url, endpoint)
+        params = {**self._auth_params(), **(extra_params or {})}
 
         try:
-            response = requests.get(url, params=params, verify=False, timeout=30)
-
-            if response.status_code in (401, 403):
-                raise PRTGAuthError(f"Autenticación fallida en {self.host}. Verifica usuario/password/passhash.")
-
-            response.raise_for_status()
-            return response.json()
-
-        except requests.exceptions.ConnectionError:
-            raise PRTGConnectionError(f"No se puede conectar a {self.host}. Verifica URL y conectividad.")
-        except requests.exceptions.Timeout:
-            raise PRTGTimeoutError(f"Timeout al conectar a {self.host} (30s).")
+            resp = self.session.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.ConnectionError as e:
+            raise PRTGConnectionError(f"No se pudo conectar a {self.base_url}: {e}") from e
         except requests.exceptions.HTTPError as e:
-            raise PRTGConnectionError(f"HTTP {response.status_code}: {e}")
+            raise PRTGConnectionError(f"Error HTTP {resp.status_code}: {e}") from e
+        except requests.exceptions.JSONDecodeError as e:
+            raise PRTGConnectionError(f"Respuesta inválida (no es JSON): {e}") from e

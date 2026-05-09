@@ -1,39 +1,48 @@
 """
-features/users/audit.py
-=======================
-Módulo de auditoría de usuarios y permisos.
-Obtiene la lista de usuarios registrados en PRTG para
-verificar credenciales por defecto, roles y accesos activos.
+src/features/users/audit.py
+============================
+Feature: Auditoría de usuarios y permisos.
+Obtiene la lista de cuentas de usuario activas en PRTG.
 """
-
 from src.core.client import PRTGClient
+from src.core.constants import API_TABLE, USER_COLS
+from src.core.exceptions import PRTGDataError
 
 
 class UserAudit:
     """
-    Audita usuarios registrados en PRTG.
-    Permite identificar cuentas con permisos excesivos o
-    credenciales que no han sido rotadas.
-    """
+    Obtiene todos los usuarios registrados en PRTG.
 
-    COLUMNS = "objid,name,email,type"
+    Uso:
+        users = UserAudit(client).run()
+    """
 
     def __init__(self, client: PRTGClient):
         self.client = client
-        self.users = []
 
-    def run(self) -> list:
-        """
-        Obtiene todos los usuarios del servidor PRTG.
-
-        Returns:
-            Lista de dicts con información de cada usuario.
-        """
-        print("  → Auditando usuarios y permisos...")
-        data = self.client.get("table.json", {
-            "content": "users",
-            "columns": self.COLUMNS,
+    def run(self) -> list[dict]:
+        print("  [users] Obteniendo usuarios...")
+        data = self.client.get(API_TABLE, {
+            "content": "accounts",
+            "columns": USER_COLS,
+            "count":   1000,
+            "output":  "json",
         })
-        self.users = data.get("users", [])
-        print(f"     ✓ {len(self.users)} usuarios encontrados.")
-        return self.users
+
+        users = data.get("accounts", [])
+        if not isinstance(users, list):
+            raise PRTGDataError("La API no devolvió una lista de cuentas.")
+
+        result = [
+            {
+                "id":          u.get("objid", ""),
+                "name":        u.get("name", ""),
+                "email":       u.get("email", ""),
+                "group":       u.get("groupmembership", ""),
+                "user_group":  u.get("usergroup", ""),
+            }
+            for u in users
+        ]
+
+        print(f"  [users] {len(result)} usuarios encontrados.")
+        return result

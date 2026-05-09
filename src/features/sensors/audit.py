@@ -1,111 +1,82 @@
 """
-features/sensors/audit.py
-=========================
-Módulo de auditoría de sensores.
-Cubre 3 hallazgos clave:
-  1. Sensores Down / Warning
-  2. Sensores sin umbrales configurados (riesgo silencioso)
-  3. Sensores pausados (>30 días = riesgo de auditoría)
+src/features/sensors/audit.py
+==============================
+Feature: Auditoría de sensores.
+Clasifica sensores en cuatro categorías:
+  - down:       estado caído (status_raw == 5)
+  - warning:    en advertencia (status_raw == 4)
+  - no_limits:  sin límites/umbrales configurados
+  - paused:     pausados manual o por horario
 """
-
 from src.core.client import PRTGClient
+from src.core.constants import (
+    API_TABLE, SENSOR_COLS,
+    STATUS_DOWN, STATUS_WARNING, STATUS_PAUSED_ALL, STATUS_NAMES,
+)
+from src.core.exceptions import PRTGDataError
 
 
 class SensorAudit:
     """
-    Audita el estado de los sensores en PRTG:
-    - down/warning, sin umbrales, y pausados.
+    Audita todos los sensores y los clasifica por estado.
+
+    Uso:
+        result = SensorAudit(client).run()
+        # result["down"], result["warning"], result["no_limits"], result["paused"]
     """
 
     def __init__(self, client: PRTGClient):
         self.client = client
-        self.sensors_down = []
-        self.sensors_warning = []
-        self.sensors_no_limits = []
-        self.sensors_paused = []
 
-    def audit_down_warning(self) -> tuple:
-        """
-        Obtiene sensores en estado Down (status=5) y Warning (status=4).
-
-        Returns:
-            Tuple (sensors_down, sensors_warning)
-        """
-        print("  → Verificando sensores caídos / en warning...")
-        columns = "objid,name,device,group,status,lastvalue,message,priority,tags"
-
-        # Status 5 = Down
-        data_down = self.client.get("table.json", {
+    def run(self) -> dict[str, list]:
+        print("  [sensors] Obteniendo sensores...")
+        data = self.client.get(API_TABLE, {
             "content": "sensors",
-            "columns": columns,
-            "filter_status": "5",
+            "columns": SENSOR_COLS,
+            "count":   50000,
+            "output":  "json",
         })
-        self.sensors_down = data_down.get("sensors", [])
 
-        # Status 4 = Warning
-        data_warn = self.client.get("table.json", {
-            "content": "sensors",
-            "columns": columns,
-            "filter_status": "4",
-        })
-        self.sensors_warning = data_warn.get("sensors", [])
-
-        print(f"     ✓ Caídos: {len(self.sensors_down)} | Warning: {len(self.sensors_warning)}")
-        return self.sensors_down, self.sensors_warning
-
-    def audit_no_limits(self) -> list:
-        """
-        Identifica sensores sin umbrales de alerta configurados.
-        Un sensor sin límites no alertará aunque el valor sea anómalo.
-
-        Returns:
-            Lista de sensores con limitmode=0 o sin límite máximo de error.
-        """
-        print("  → Verificando sensores sin umbrales definidos...")
-        data = self.client.get("table.json", {
-            "content": "sensors",
-            "columns": "objid,name,device,group,status,lastvalue,priority,limitmaxerror,limitmaxwarning,limitmode",
-        })
         sensors = data.get("sensors", [])
-        self.sensors_no_limits = [
-            s for s in sensors
-            if str(s.get("limitmode", "0")) == "0"
-            or s.get("limitmaxerror") in ["", None, "0"]
-        ]
-        print(f"     ✓ {len(self.sensors_no_limits)} sensores sin umbrales de {len(sensors)} totales.")
-        return self.sensors_no_limits
+        if not isinstance(sensors, list):
+            raise PRTGDataError("La API no devolvió una lista de sensores.")
 
-    def audit_paused(self) -> list:
-        """
-        Obtiene sensores pausados (status=7).
-        Pausas prolongadas (>30 días) representan riesgo de auditoría.
+        down, warning, no_limits, paused = [], [], [], []
 
-        Returns:
-            Lista de sensores en estado Paused.
-        """
-        print("  → Verificando sensores pausados...")
-        data = self.client.get("table.json", {
-            "content": "sensors",
-            "columns": "objid,name,device,group,status,message,tags",
-            "filter_status": "7",  # 7 = Paused
-        })
-        self.sensors_paused = data.get("sensors", [])
-        print(f"     ✓ {len(self.sensors_paused)} sensores pausados.")
-        return self.sensors_paused
+        for s in sensors:
+            status_raw = s.get("status_raw", 0)
+            record = self._parse(s, status_raw)
 
-    def run(self) -> dict:
-        """
-        Ejecuta los 3 módulos de auditoría de sensores.
+            if status_raw == STATUS_DOWN:
+                down.append(record)
+            elif status_raw == STATUS_WARNING:
+                warning.append(record)
+            elif status_raw in STATUS_PAUSED_ALL:
+                paused.append(record)
 
-        Returns:
-            Dict con keys: down, warning, no_limits, paused
-        """
-        self.audit_down_warning()
-        self.audit_no_limits()
-        self.audit_paused()
+            # Sin umbrales: lastvalue vacío y sensor activo
+            if not s.get("lastvalue") and status_raw not in STATUS_PAUSED_ALL:
+                no_limits.append(record)
+
+        print(f"  [sensors] Down={len(down)} | Warning={len(warning)} "
+              f"| Sin umbrales={len(no_limits)} | Pausados={len(paused)}")
+
         return {
-            "down": self.sensors_down,
-            "warning": self.sensors_warning,
-            "no_limits": self.sensors_no_limits,
-            "paused": self.sensors_paused,
+            "down":      down,
+            "warning":   warning,
+            "no_limits": no_limits,
+            "paused":    paused,
+        }
+
+    def _parse(self, s: dict, status_raw: int) -> dict:
+        return {
+            "id":        s.get("objid", ""),
+            "name":      s.get("sensor", ""),
+            "device":    s.get("device", ""),
+            "group":     s.get("group", ""),
+            "probe":     s.get("probe", ""),
+            "status":    STATUS_NAMES.get(status_raw, s.get("status", "")),
+            "lastvalue": s.get("lastvalue", ""),
+            "priority":  s.get("priority", ""),
+            "message":   s.get("message", ""),
         }

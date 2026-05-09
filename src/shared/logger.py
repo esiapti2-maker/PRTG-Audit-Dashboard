@@ -1,45 +1,48 @@
 """
-shared/logger.py
-================
-Logger de consola para la auditoría PRTG.
-Imprime resumen ejecutivo con todos los hallazgos.
+src/shared/logger.py
+=====================
+Logger de consola reutilizable para el CLI de auditoría.
+Formatea mensajes de inicio, resumen y finalización multi-sitio.
 """
+from datetime import datetime
 
 
 class AuditLogger:
-    """
-    Imprime resúmenes y mensajes de progreso en consola.
-    """
 
     @staticmethod
     def header(site_name: str, host: str):
-        print(f"\n[PRTG-AUDIT] Iniciando auditoría de: {site_name} ({host})")
-        print("-" * 55)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print()
+        print("=" * 60)
+        print(f"  PRTG Audit  |  {site_name}")
+        print(f"  Host:  {host}")
+        print(f"  Fecha: {ts}")
+        print("=" * 60)
 
     @staticmethod
-    def summary(site_name: str, results: dict):
-        """
-        Imprime resumen ejecutivo.
-
-        Args:
-            site_name: Nombre del sitio auditado
-            results:   Dict con conteos por categoría
-        """
-        print(f"\n{'='*55}")
-        print(f"  RESUMEN AUDITORÍA — {site_name}")
-        print(f"{'='*55}")
-        print(f"  Dispositivos totales       : {results.get('devices', 0)}")
-        print(f"  Sensores CAÍDOS            : {results.get('sensors_down', 0)}")
-        print(f"  Sensores en WARNING        : {results.get('sensors_warning', 0)}")
-        print(f"  Sensores SIN UMBRALES      : {results.get('sensors_no_limits', 0)}")
-        print(f"  Sensores PAUSADOS          : {results.get('sensors_paused', 0)}")
-        print(f"  Usuarios                   : {results.get('users', 0)}")
-        print(f"  Notificaciones PAUSADAS    : {results.get('notifications_paused', 0)}")
-        print(f"{'='*55}")
+    def summary(site_name: str, counts: dict):
+        print()
+        print(f"  ── Resumen: {site_name} ──")
+        labels = {
+            "devices":              "Dispositivos totales",
+            "sensors_down":         "Sensores DOWN",
+            "sensors_warning":      "Sensores WARNING",
+            "sensors_no_limits":    "Sensores sin umbrales",
+            "sensors_paused":       "Sensores pausados",
+            "users":                "Usuarios",
+            "notifications_paused": "Notificaciones pausadas",
+        }
+        for key, count in counts.items():
+            label = labels.get(key, key)
+            flag  = " ⚠" if count > 0 and key != "devices" and key != "users" else ""
+            print(f"    {label:<30} {count:>6}{flag}")
 
     @staticmethod
-    def multi_site_done(output_dir: str, reports: list):
-        print(f"\n[PRTG-AUDIT] Auditoría multi-sitio completada.")
-        print(f"  Reportes generados en: {output_dir}/")
+    def multi_site_done(output_dir: str, reports: list[str]):
+        print()
+        print("=" * 60)
+        print(f"  Multi-sitio finalizado. {len(reports)} reporte(s) generado(s).")
+        print(f"  Directorio: {output_dir}")
         for r in reports:
-            print(f"    - {r}")
+            print(f"    • {r}")
+        print("=" * 60)

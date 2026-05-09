@@ -1,43 +1,53 @@
 """
-features/notifications/audit.py
-================================
-Módulo de auditoría de notificaciones y alertas.
-Verifica qué notificaciones están activas vs pausadas.
-Notificaciones pausadas = riesgo de no recibir alertas críticas.
+src/features/notifications/audit.py
+=====================================
+Feature: Auditoría de notificaciones / alertas.
+Detecta alertas activas vs pausadas para revisión de gaps de monitoreo.
 """
-
 from src.core.client import PRTGClient
+from src.core.constants import API_TABLE, NOTIF_COLS
+from src.core.exceptions import PRTGDataError
 
 
 class NotificationAudit:
     """
-    Audita el estado de las notificaciones/alertas configuradas en PRTG.
+    Clasifica notificaciones en activas y pausadas.
+
+    Uso:
+        result = NotificationAudit(client).run()
+        # result["active"], result["paused"]
     """
 
     def __init__(self, client: PRTGClient):
         self.client = client
-        self.notifications = []
-        self.active = []
-        self.paused = []
 
-    def run(self) -> dict:
-        """
-        Obtiene todas las notificaciones y clasifica activas vs pausadas.
-
-        Returns:
-            Dict con keys: all, active, paused
-        """
-        print("  → Auditando notificaciones/alertas...")
-        data = self.client.get("table.json", {
+    def run(self) -> dict[str, list]:
+        print("  [notifications] Obteniendo notificaciones...")
+        data = self.client.get(API_TABLE, {
             "content": "notifications",
-            "columns": "objid,name,active",
+            "columns": NOTIF_COLS,
+            "count":   5000,
+            "output":  "json",
         })
-        self.notifications = data.get("notifications", [])
-        self.active = [n for n in self.notifications if str(n.get("active", "0")) == "1"]
-        self.paused = [n for n in self.notifications if str(n.get("active", "0")) != "1"]
-        print(f"     ✓ Activas: {len(self.active)} | Pausadas: {len(self.paused)}")
-        return {
-            "all": self.notifications,
-            "active": self.active,
-            "paused": self.paused,
-        }
+
+        notifs = data.get("notifications", [])
+        if not isinstance(notifs, list):
+            raise PRTGDataError("La API no devolvió una lista de notificaciones.")
+
+        active, paused = [], []
+
+        for n in notifs:
+            record = {
+                "id":           n.get("objid", ""),
+                "name":         n.get("name", ""),
+                "active":       n.get("active", ""),
+                "status":       n.get("status", ""),
+                "last_trigger": n.get("lasttrigger", ""),
+            }
+            if str(n.get("active", "")).lower() in ("0", "false", "no", ""):
+                paused.append(record)
+            else:
+                active.append(record)
+
+        print(f"  [notifications] Activas={len(active)} | Pausadas={len(paused)}")
+        return {"active": active, "paused": paused}

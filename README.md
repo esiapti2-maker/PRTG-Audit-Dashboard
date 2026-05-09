@@ -1,46 +1,48 @@
 # PRTG Audit Dashboard
 
-Herramienta de auditoría interna para instancias PRTG Network Monitor.
-Genera reportes CSV con hallazgos de seguridad y operación listos para revisión.
+Herramienta de auditoría interna para servidores **PRTG Network Monitor**.
+Genera reportes CSV detallados sobre el estado de dispositivos, sensores, usuarios y notificaciones.
 
 ---
 
-## Estructura del Proyecto
+## Estructura del proyecto
 
-Arquitectura **Híbrida Tipo + Feature** — combina la claridad de capas con la escalabilidad por funcionalidades:
+Estructura **Híbrida: Tipo + Feature** — combina claridad por capas con escalabilidad por funcionalidades.
 
 ```
 PRTG-Audit-Dashboard/
-├── src/
-│   ├── core/                   # Lógica de negocio compartida
-│   │   ├── client.py           #   Cliente HTTP para la API REST de PRTG
-│   │   ├── auth.py             #   Manejo de autenticación (password / passhash)
-│   │   └── exceptions.py       #   Excepciones personalizadas
-│   │
-│   ├── features/               # Módulos independientes por funcionalidad
-│   │   ├── devices/
-│   │   │   └── audit.py        #   Inventario de dispositivos
-│   │   ├── sensors/
-│   │   │   └── audit.py        #   Down, Warning, Sin umbrales, Pausados
-│   │   ├── users/
-│   │   │   └── audit.py        #   Usuarios y permisos
-│   │   └── notifications/
-│   │       └── audit.py        #   Alertas activas vs pausadas
-│   │
-│   └── shared/                 # Código reutilizable por toda la app
-│       ├── exporter.py         #   Exportación a CSV
-│       └── logger.py           #   Resúmenes y mensajes de consola
 │
 ├── scripts/
-│   └── prtg_audit.py           # Entry point CLI (orquestador)
+│   └── prtg_audit.py        ← CLI entry point (orquestador)
 │
-├── dashboard/
-│   └── prtg-audit-dashboard.html  # Dashboard interactivo (HTML)
+├── src/
+│   ├── core/                ← Lógica compartida de infraestructura
+│   │   ├── client.py        ← Cliente HTTP para la API de PRTG
+│   │   ├── constants.py     ← Constantes, endpoints, columnas
+│   │   └── exceptions.py    ← Jerarquía de excepciones
+│   │
+│   ├── features/            ← Módulos independientes por funcionalidad
+│   │   ├── devices/
+│   │   │   ├── audit.py     ← Inventario de dispositivos
+│   │   │   └── types.py     ← TypedDict para DeviceRecord
+│   │   ├── sensors/
+│   │   │   ├── audit.py     ← Down / Warning / Sin umbrales / Pausados
+│   │   │   └── types.py
+│   │   ├── users/
+│   │   │   ├── audit.py     ← Listado de cuentas y permisos
+│   │   │   └── types.py
+│   │   └── notifications/
+│   │       ├── audit.py     ← Alertas activas vs pausadas
+│   │       └── types.py
+│   │
+│   └── shared/              ← Código reutilizable por todos los features
+│       ├── exporter.py      ← Exportador CSV multi-sección
+│       └── logger.py        ← Logger de consola
 │
-├── .env.example                # Plantilla de variables de entorno
-├── .gitignore
+├── prtg-audit-dashboard.html  ← Dashboard visual (HTML standalone)
 ├── requirements.txt
-└── README.md
+├── .env.example
+└── .gitignore
 ```
 
 ---
@@ -60,12 +62,12 @@ pip install -r requirements.txt
 ### Auditoría de un solo sitio
 
 ```bash
-# Con passhash (recomendado — Setup → My Account → Passhash en PRTG)
+# Con passhash (recomendado — Setup → My Account → Passhash)
 python scripts/prtg_audit.py \
   --host https://prtg.empresa.com \
   --user admin \
   --passhash TU_PASSHASH \
-  --site-name Guadalajara \
+  --site-name "Guadalajara" \
   --output ./reportes
 
 # Con contraseña en texto plano
@@ -73,12 +75,31 @@ python scripts/prtg_audit.py \
   --host https://prtg.empresa.com \
   --user admin \
   --pass MiPassword \
-  --site-name Monterrey
+  --site-name "CDMX"
 ```
 
 ### Auditoría multi-sitio
 
-Edita la sección `SITES = [...]` en `scripts/prtg_audit.py` y ejecuta:
+Edita la lista `SITES` en `scripts/prtg_audit.py`:
+
+```python
+SITES = [
+    {
+        "name":     "Guadalajara",
+        "host":     "https://prtg-gdl.empresa.com",
+        "username": "auditor",
+        "passhash": "1234567890",
+    },
+    {
+        "name":     "CDMX-DR",
+        "host":     "https://prtg-cdmx.empresa.com",
+        "username": "auditor",
+        "passhash": "0987654321",
+    },
+]
+```
+
+Luego ejecuta:
 
 ```bash
 python scripts/prtg_audit.py --multi-site --output ./reportes
@@ -86,55 +107,34 @@ python scripts/prtg_audit.py --multi-site --output ./reportes
 
 ---
 
-## Módulos de Auditoría
+## Reporte CSV generado
 
-| Feature | Archivo | Hallazgo |
-|---|---|---|
-| **Dispositivos** | `features/devices/audit.py` | Inventario completo |
-| **Sensores Down/Warning** | `features/sensors/audit.py` | CRÍTICO / ADVERTENCIA |
-| **Sensores sin umbrales** | `features/sensors/audit.py` | RIESGO silencioso |
-| **Sensores pausados** | `features/sensors/audit.py` | REVISIÓN >30 días |
-| **Usuarios** | `features/users/audit.py` | Contraseñas por defecto |
-| **Notificaciones** | `features/notifications/audit.py` | Alertas pausadas |
+El archivo se guarda como `prtg_audit_{sitio}_{timestamp}.csv` con las siguientes secciones:
 
----
-
-## Reporte CSV
-
-Cada ejecución genera: `reports/prtg_audit_{sitio}_{YYYYMMDD_HHMMSS}.csv`
-
-| Columna | Descripción |
+| Sección | Descripción |
 |---|---|
-| `sitio` | Nombre del sitio auditado |
-| `tipo` | Categoría del hallazgo |
-| `id` | ID del objeto en PRTG |
-| `nombre` | Nombre del sensor/dispositivo |
-| `dispositivo_host` | IP o hostname del dispositivo |
-| `grupo` | Grupo o ubicación en PRTG |
-| `estado` | Estado actual |
-| `mensaje` | Mensaje de PRTG |
-| `prioridad` | Prioridad configurada (1-5) |
-| `ultimo_valor` | Último valor registrado |
-| `hallazgo` | Descripción del hallazgo para auditoría |
+| `INVENTARIO` | Todos los dispositivos y su estado actual |
+| `SENSOR DOWN` | Sensores caídos con mensaje de error |
+| `SENSOR WARNING` | Sensores en estado de advertencia |
+| `SIN UMBRALES` | Sensores sin límites configurados |
+| `SENSOR PAUSADO` | Sensores pausados manualmente o por horario |
+| `USUARIO` | Cuentas de usuario activas y sus grupos |
+| `NOTIF PAUSADA` | Notificaciones/alertas desactivadas |
 
 ---
 
-## Extender el Proyecto
+## Extender con un nuevo feature
 
-Para agregar un nuevo módulo de auditoría (ej. `groups`):
-
-```
-src/features/groups/
-├── __init__.py
-└── audit.py      ← clase GroupAudit con método run()
-```
-
-Luego importarlo en `scripts/prtg_audit.py` y agregarlo al orquestador `run_audit()`.
+1. Crear carpeta `src/features/mi_feature/`
+2. Agregar `audit.py` con clase `MiFeatureAudit(client).run()` → retorna `list[dict]`
+3. Agregar `types.py` con `TypedDict` del resultado
+4. Importar y llamar desde `scripts/prtg_audit.py`
+5. Agregar método `add_mi_feature()` en `src/shared/exporter.py`
 
 ---
 
 ## Seguridad
 
-- Usar **passhash** en lugar de contraseña en texto plano
-- El `.gitignore` excluye archivos `.env`, reportes CSV y credenciales
-- Las llamadas a la API usan `verify=False` para PRTG con certificados auto-firmados
+- Usa siempre `--passhash` en lugar de `--pass` para evitar contraseñas en texto plano en el historial de shell.
+- El archivo `.env.example` muestra las variables recomendadas; copia a `.env` y **nunca lo subas al repo** (está en `.gitignore`).
+- Los reportes CSV también están en `.gitignore` para evitar filtrar datos de producción.
