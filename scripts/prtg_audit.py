@@ -75,21 +75,82 @@ def build_sites_from_env() -> list:
     return sites
 
 
-# ── Configuración multi-sitio manual (alternativa al .env) ───────────────────
-# Si prefieres no usar .env puedes definir los sitios aquí:
+# ── Configuración multi-sitio — 12 instancias reales gap.net ─────────────────
+# Rellena username y passhash de cada sitio antes de usar --multi-site.
+# El passhash se obtiene en PRTG: Setup → My Account → Passhash
 SITES_MANUAL = [
-    # {
-    #     "name":     "Guadalajara",
-    #     "host":     "https://prtg-gdl.empresa.com",
-    #     "username": "admin",
-    #     "passhash": "1234567890",
-    # },
-    # {
-    #     "name":     "CDMX-DR",
-    #     "host":     "https://prtg-cdmx.empresa.com",
-    #     "username": "auditor",
-    #     "passhash": "0987654321",
-    # },
+    {
+        "name":     "Aguascalientes",
+        "host":     "https://aguprtg.gap.net",
+        "username": "",   # <-- completar
+        "passhash": "",   # <-- completar
+    },
+    {
+        "name":     "Baja California",
+        "host":     "https://bjxprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Guadalajara",
+        "host":     "https://gdlprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Hermosillo",
+        "host":     "https://hmoprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "La Paz",
+        "host":     "https://lapprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Los Mochis",
+        "host":     "https://lmmprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Culiacán",
+        "host":     "https://mlmprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Mexicali",
+        "host":     "https://mxlprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Puerto Vallarta",
+        "host":     "https://pvrprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "San José del Cabo",
+        "host":     "https://sjdprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Tijuana",
+        "host":     "https://tijprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
+    {
+        "name":     "Zihuatanejo / Ixtapa",
+        "host":     "https://zloprtg.gap.net",
+        "username": "",
+        "passhash": "",
+    },
 ]
 
 
@@ -184,7 +245,7 @@ if __name__ == "__main__":
         epilog="""
 Ejemplos:
   python scripts/prtg_audit.py                                 # Lee desde .env
-  python scripts/prtg_audit.py --host https://prtg.co --user admin --passhash XXXX
+  python scripts/prtg_audit.py --host https://gdlprtg.gap.net --user admin --passhash XXXX
   python scripts/prtg_audit.py --format both --output ./reports
   python scripts/prtg_audit.py --dry-run
   python scripts/prtg_audit.py --multi-site --format json
