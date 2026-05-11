@@ -75,15 +75,21 @@ def build_sites_from_env() -> list:
     return sites
 
 
-# ── Configuración multi-sitio — 12 instancias reales gap.net ─────────────────
+# ── Configuración multi-sitio — 13 instancias reales gap.net ─────────────────
 # Rellena username y passhash de cada sitio antes de usar --multi-site.
 # El passhash se obtiene en PRTG: Setup → My Account → Passhash
 SITES_MANUAL = [
     {
-        "name":     "Aguascalientes",
-        "host":     "https://aguprtg.gap.net",
+        "name":     "SIAP Corporativo",
+        "host":     "https://prtg.gap.net",
         "username": "",   # <-- completar
         "passhash": "",   # <-- completar
+    },
+    {
+        "name":     "Aguascalientes",
+        "host":     "https://aguprtg.gap.net",
+        "username": "",
+        "passhash": "",
     },
     {
         "name":     "Baja California",
@@ -116,7 +122,7 @@ SITES_MANUAL = [
         "passhash": "",
     },
     {
-        "name":     "Culiacán",
+        "name":     "Morelia",
         "host":     "https://mlmprtg.gap.net",
         "username": "",
         "passhash": "",
@@ -146,7 +152,7 @@ SITES_MANUAL = [
         "passhash": "",
     },
     {
-        "name":     "Zihuatanejo / Ixtapa",
+        "name":     "Manzanillo",
         "host":     "https://zloprtg.gap.net",
         "username": "",
         "passhash": "",
@@ -174,7 +180,6 @@ def run_audit(host: str, username: str, password: str = None, passhash: str = No
     )
 
     if dry_run:
-        # Solo verificar que la API responde
         log.info("[dry-run] Verificando conectividad con %s...", host)
         try:
             data = client.get("/api/table.json", {
@@ -213,8 +218,8 @@ def run_audit(host: str, username: str, password: str = None, passhash: str = No
 
 
 def run_multi_site(sites: list, output_dir: str = "reports",
-                  verify_ssl: bool = True, fmt: str = "csv",
-                  dry_run: bool = False):
+                   verify_ssl: bool = True, fmt: str = "csv",
+                   dry_run: bool = False):
     log = logging.getLogger(__name__)
     reports = []
     for site in sites:
