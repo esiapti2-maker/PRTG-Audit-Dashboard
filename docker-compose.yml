@@ -1,0 +1,36 @@
+# ── PRTG Audit Dashboard — Orquestación completa ──────────────────────────────
+# Servicios:
+#   proxy   — Flask backend que resuelve CORS (puerto 5000)
+#
+# Uso:
+#   cp .env.example .env   # y edita las credenciales
+#   docker-compose up -d
+#   Abre prtg-audit-dashboard.html en el browser
+
+version: "3.9"
+
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prtg_audit_proxy
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PROXY_PORT:-5000}:5000"
+    volumes:
+      - ./reportes:/app/reportes   # CSVs exportados persisten en tu disco
+    networks:
+      - audit_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  audit_net:
+    driver: bridge
