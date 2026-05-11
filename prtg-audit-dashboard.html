@@ -32,7 +32,7 @@
     a{color:inherit;text-decoration:none} button,input,select{font:inherit;color:inherit} button{cursor:pointer}
     .skip-link{position:absolute;left:-9999px;top:auto} .skip-link:focus{left:1rem;top:1rem;z-index:9999;background:var(--color-surface-2);padding:.75rem 1rem;border-radius:var(--radius-md)}
     /* Layout */
-    .app{display:grid;grid-template-columns:272px 1fr;min-height:100vh}
+    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
     .sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;padding:var(--space-6) var(--space-5);background:var(--color-surface);border-right:1px solid color-mix(in oklab,var(--color-text) 10%,transparent)}
     .brand{display:flex;align-items:center;gap:.85rem;margin-bottom:var(--space-6)}
     .brand-logo{width:40px;height:40px;flex-shrink:0;color:var(--color-primary)}
@@ -46,6 +46,11 @@
     .inst-dot{width:8px;height:8px;border-radius:50%;background:var(--color-surface-dynamic);flex-shrink:0;transition:background .3s}
     .inst-dot.connected{background:var(--color-success)}
     .inst-dot.demo{background:var(--color-warning)}
+    /* Capacity bar */
+    .capacity-bar-wrap{margin-top:.6rem}
+    .capacity-bar-label{display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--color-text-faint);margin-bottom:.3rem}
+    .capacity-bar-track{height:4px;border-radius:var(--radius-full);background:var(--color-surface-dynamic)}
+    .capacity-bar-fill{height:100%;border-radius:var(--radius-full);background:var(--color-primary);transition:width .4s ease}
     nav.nav{display:grid;gap:.35rem}
     nav.nav a{display:flex;align-items:center;gap:.75rem;padding:.75rem .9rem;border-radius:var(--radius-lg);color:var(--color-text-muted);font-size:var(--text-sm);transition:background var(--transition),color var(--transition)}
     nav.nav a:hover,nav.nav a.active{background:color-mix(in oklab,var(--color-primary) 10%,var(--color-surface));color:var(--color-text)}
@@ -118,17 +123,26 @@
     .empty{padding:var(--space-8) var(--space-4);text-align:center;color:var(--color-text-muted);font-size:var(--text-sm)}
     .empty i{display:block;margin:0 auto var(--space-3)}
     /* ── Instancias Manager ── */
-    .inst-grid{display:grid;gap:var(--space-4)}
-    .inst-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-xl);background:var(--color-surface-offset);border:1px solid color-mix(in oklab,var(--color-text) 8%,transparent);transition:border-color var(--transition)}
+    .inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-3)}
+    .inst-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-xl);background:var(--color-surface-offset);border:1px solid color-mix(in oklab,var(--color-text) 8%,transparent);transition:border-color var(--transition),background var(--transition)}
     .inst-card.active-inst{border-color:var(--color-primary);background:color-mix(in oklab,var(--color-primary) 5%,var(--color-surface))}
-    .inst-card.empty-inst{opacity:.55}
+    .inst-card.empty-inst{opacity:.5}
     .inst-card-info{min-width:0}
-    .inst-card-name{font-weight:700;font-size:var(--text-sm);margin:0 0 .2rem;display:flex;align-items:center;gap:.5rem}
+    .inst-card-name{font-weight:700;font-size:var(--text-sm);margin:0 0 .25rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
     .inst-card-host{font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .inst-card-user{font-size:var(--text-xs);color:var(--color-text-faint);margin-top:.2rem}
     .inst-card-actions{display:flex;gap:.4rem;flex-shrink:0}
     .inst-slot-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:var(--radius-full);background:var(--color-surface-dynamic);color:var(--color-text-faint);font-size:.7rem;font-weight:700;flex-shrink:0}
     .active-inst .inst-slot-num{background:var(--color-primary);color:var(--color-text-inverse)}
+    /* Inst capacity summary */
+    .inst-summary{display:flex;gap:var(--space-4);flex-wrap:wrap;padding:var(--space-4) var(--space-5);background:var(--color-surface-offset);border-radius:var(--radius-lg);margin-bottom:var(--space-5);border:1px solid color-mix(in oklab,var(--color-text) 7%,transparent)}
+    .inst-summary-item{display:flex;flex-direction:column;align-items:center;min-width:60px}
+    .inst-summary-num{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+    .inst-summary-label{font-size:var(--text-xs);color:var(--color-text-faint);margin-top:.2rem;text-align:center}
+    .inst-summary-divider{width:1px;background:var(--color-divider);flex-shrink:0}
+    .inst-progress-bar{flex:1;display:flex;flex-direction:column;justify-content:center;gap:.4rem}
+    .inst-progress-track{height:6px;border-radius:var(--radius-full);background:var(--color-surface-dynamic);overflow:hidden}
+    .inst-progress-fill{height:100%;border-radius:var(--radius-full);background:var(--color-primary);transition:width .5s ease}
     /* Modal */
     .modal-backdrop{position:fixed;inset:0;z-index:100;background:oklch(0 0 0 / .45);display:flex;align-items:center;justify-content:center;padding:var(--space-4)}
     .modal-backdrop.hidden{display:none}
@@ -137,7 +151,7 @@
     .modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:var(--space-5)}
     /* Mobile */
     @media(max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid color-mix(in oklab,var(--color-text) 8%,transparent)}.hero{grid-template-columns:1fr}.split{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:640px){.kpi-grid{grid-template-columns:1fr 1fr}.container,.sidebar{padding:var(--space-4)}.actions .btn{flex:1}}
+    @media(max-width:640px){.kpi-grid{grid-template-columns:1fr 1fr}.container,.sidebar{padding:var(--space-4)}.actions .btn{flex:1}.inst-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -191,6 +205,16 @@
         <span class="inst-dot" id="sidebarDot"></span>
         <span id="sidebarStatus">Sin datos cargados</span>
       </div>
+      <!-- Mini barra de capacidad -->
+      <div class="capacity-bar-wrap">
+        <div class="capacity-bar-label">
+          <span id="capLabel">0 / 14 configuradas</span>
+          <span id="capPct">0%</span>
+        </div>
+        <div class="capacity-bar-track">
+          <div class="capacity-bar-fill" id="capFill" style="width:0%"></div>
+        </div>
+      </div>
     </div>
 
     <nav class="nav" aria-label="Secciones">
@@ -226,10 +250,10 @@
       <section id="resumen" class="panel hero" aria-labelledby="heroTitle">
         <div>
           <p class="eyebrow">Auditoría PRTG · Multi-sitio</p>
-          <h2 id="heroTitle">Gestiona hasta 14 instancias PRTG desde un solo panel.</h2>
-          <p>Configura cada sitio una vez en la sección <strong>Instancias</strong>. Selecciona la instancia activa en el sidebar y audítala con un clic. Todas las auditorías usan passhash — obtenido desde <strong>My Account → Show Passhash</strong>.</p>
+          <h2 id="heroTitle">Hasta 14 instancias PRTG desde un solo panel.</h2>
+          <p>5 sitios pre-configurados y listos para agregar sus credenciales. Los 9 slots restantes se habilitan cuando los necesites — ve a <strong>Instancias</strong> y haz clic en <em>Configurar</em>.</p>
           <div class="chip-row">
-            <span class="chip"><i data-lucide="server"></i> Hasta 14 instancias</span>
+            <span class="chip"><i data-lucide="server"></i> 14 slots — 5 activos</span>
             <span class="chip"><i data-lucide="shield-check"></i> Passhash o API token</span>
             <span class="chip"><i data-lucide="rows-3"></i> JSON · CSV export</span>
             <span class="chip"><i data-lucide="wifi"></i> CORS: usar en red interna</span>
@@ -248,7 +272,7 @@
               <input class="inp" id="secretInput" type="password" placeholder="—">
             </label>
           </div>
-          <p class="hint">Los campos Host y Usuario se llenan automáticamente al seleccionar la instancia. Solo ingresa o confirma el passhash si no estaba guardado.</p>
+          <p class="hint">Host y Usuario se llenan automáticamente al seleccionar la instancia. Solo confirma o ingresa el passhash si no estaba guardado.</p>
           <div style="margin-top:1rem;display:flex;gap:.6rem;flex-wrap:wrap">
             <button class="btn btn-primary" id="connectBtn2"><i data-lucide="plug-zap"></i> Conectar y auditar</button>
             <button class="btn btn-secondary" id="loadDemoBtn2"><i data-lucide="database-zap"></i> Cargar demo</button>
@@ -328,13 +352,43 @@
 
       <!-- ═══ INSTANCIAS ═══ -->
       <section id="instancias" class="panel section" aria-labelledby="instTitle">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
           <div>
-            <h3 id="instTitle" style="margin:0 0 .25rem">Instancias PRTG — Gestión de sitios</h3>
-            <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin:0">Capacidad: <strong id="instCount">0</strong> / 14 instancias configuradas. Haz clic en <em>Editar</em> para configurar cualquier slot.</p>
+            <h3 id="instTitle" style="margin:0 0 .2rem">Instancias PRTG — Gestión de sitios</h3>
+            <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin:0">Capacidad máxima: 14 instancias. Agrega credenciales a cada slot cuando estés listo.</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="addInstBtn" style="flex-shrink:0"><i data-lucide="plus"></i> Agregar instancia</button>
         </div>
+
+        <!-- Summary bar -->
+        <div class="inst-summary">
+          <div class="inst-summary-item">
+            <span class="inst-summary-num" id="sumConfigured">0</span>
+            <span class="inst-summary-label">Configuradas</span>
+          </div>
+          <div class="inst-summary-divider"></div>
+          <div class="inst-summary-item">
+            <span class="inst-summary-num" id="sumAvailable">14</span>
+            <span class="inst-summary-label">Disponibles</span>
+          </div>
+          <div class="inst-summary-divider"></div>
+          <div class="inst-summary-item">
+            <span class="inst-summary-num" style="color:var(--color-primary)" id="sumMax">14</span>
+            <span class="inst-summary-label">Capacidad</span>
+          </div>
+          <div class="inst-summary-divider" style="margin-inline:var(--space-2)"></div>
+          <div class="inst-progress-bar">
+            <div style="font-size:var(--text-xs);color:var(--color-text-muted);display:flex;justify-content:space-between">
+              <span>Slots en uso</span>
+              <span id="sumPct">0%</span>
+            </div>
+            <div class="inst-progress-track">
+              <div class="inst-progress-fill" id="sumFill" style="width:0%"></div>
+            </div>
+            <div style="font-size:var(--text-xs);color:var(--color-text-faint)" id="sumNote">9 slots disponibles para futuras instancias</div>
+          </div>
+        </div>
+
         <div class="inst-grid" id="instGrid"></div>
       </section>
 
@@ -359,13 +413,16 @@ content=devices\
 &passhash=TU_PASSHASH"</div>
           </div>
           <div>
-            <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin:0 0 .75rem"><strong>Python — auditoría multi-sitio:</strong></p>
+            <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin:0 0 .75rem"><strong>Python — auditoría multi-sitio (14 instancias):</strong></p>
             <div class="codebox">import requests
 
 SITES = [
-  {"name":"GDL","host":"https://prtg-gdl.empresa.com","passhash":"HASH1"},
-  {"name":"MTY","host":"https://prtg-mty.empresa.com","passhash":"HASH2"},
-  # ... hasta 14 sitios
+  {"name":"GDL Principal","host":"https://prtg-gdl.empresa.com","passhash":"HASH1"},
+  {"name":"MTY",          "host":"https://prtg-mty.empresa.com","passhash":"HASH2"},
+  {"name":"CDMX",         "host":"https://prtg-cdmx.empresa.com","passhash":"HASH3"},
+  {"name":"DR Site",      "host":"https://prtg-dr.empresa.com","passhash":"HASH4"},
+  {"name":"Planta Norte", "host":"https://prtg-norte.empresa.com","passhash":"HASH5"},
+  # Slots 6-14: agregar cuando estén disponibles
 ]
 
 for site in SITES:
@@ -392,54 +449,56 @@ for site in SITES:
 /* ══════════════════════════════════════════
    INSTANCIAS — configuración y estado
    Capacidad máxima: 14 slots
+   Pre-configurados: 5 sitios (slots 0-4)
+   Disponibles: slots 5-13 (agregar cuando se necesiten)
 ══════════════════════════════════════════ */
 const MAX_INSTANCES = 14;
 
-// 5 instancias pre-configuradas (slots 0-4), resto vacíos
+// 5 instancias con nombre pre-configuradas, host vacío (pendiente de credenciales)
+// Slots 5-13: null = vacío / disponible
 const DEFAULT_INSTANCES = [
-  {name:'Sitio 1 — GDL Principal', host:'', user:'auditor', secret:'', connected:false},
-  {name:'Sitio 2 — MTY',           host:'', user:'auditor', secret:'', connected:false},
-  {name:'Sitio 3 — CDMX',          host:'', user:'auditor', secret:'', connected:false},
-  {name:'Sitio 4 — DR Site',        host:'', user:'auditor', secret:'', connected:false},
-  {name:'Sitio 5 — Planta Norte',   host:'', user:'auditor', secret:'', connected:false},
-  null,null,null,null,null,null,null,null,null   // slots 5-13 vacíos
+  {name:'GDL Principal',   host:'', user:'auditor', secret:'', connected:false},
+  {name:'MTY',             host:'', user:'auditor', secret:'', connected:false},
+  {name:'CDMX',            host:'', user:'auditor', secret:'', connected:false},
+  {name:'DR Site',         host:'', user:'auditor', secret:'', connected:false},
+  {name:'Planta Norte',    host:'', user:'auditor', secret:'', connected:false},
+  null, null, null, null, null, null, null, null, null  // slots 5-13 disponibles
 ];
 
-// Instancias en memoria de sesión (no persisten al recargar — sin localStorage)
 let instances = DEFAULT_INSTANCES.map(i => i ? {...i} : null);
-let activeIdx  = 0;   // índice de instancia activa
-let editIdx    = -1;  // índice editando en modal
+let activeIdx  = 0;
+let editIdx    = -1;
 
 /* ══ DATOS DEMO ══ */
 const DEMO = {
   devices: 24,
   sensors: [
-    {name:'Ping Core SW',   device:'core-sw-01',    group:'Campus GDL',     status:'up',      lastvalue:'1 ms',     message:'OK'},
-    {name:'CPU VMware Host',device:'esxi-gdl-02',   group:'Virtualización', status:'warning', lastvalue:'91 %',     message:'Uso alto de CPU'},
-    {name:'Free Disk C:',   device:'srv-ad-01',     group:'Windows',        status:'down',    lastvalue:'0 %',      message:'Host no responde'},
-    {name:'HTTP Portal',    device:'portal-interno',group:'Aplicaciones',   status:'up',      lastvalue:'220 ms',   message:'OK'},
-    {name:'SNMP UPS Battery',device:'ups-dc-01',    group:'Energía',        status:'paused',  lastvalue:'—',        message:'Paused by dependency'},
-    {name:'Memory Usage',   device:'docker-host-01',group:'Linux',          status:'warning', lastvalue:'87 %',     message:'Memoria elevada'},
-    {name:'Custom EXE',     device:'asdk-01',       group:'Service Desk',   status:'up',      lastvalue:'3 s',      message:'OK'},
-    {name:'Interface Gi0/1',device:'cisco-core-01', group:'Network',        status:'up',      lastvalue:'28 Mbit/s',message:'OK'},
-    {name:'SNMP CPU Load',  device:'cisco-core-01', group:'Network',        status:'up',      lastvalue:'22 %',     message:'OK'},
-    {name:'Ping DR Site',   device:'fw-dr-01',      group:'DR Site',        status:'down',    lastvalue:'—',        message:'Timeout'}
+    {name:'Ping Core SW',    device:'core-sw-01',     group:'Campus GDL',     status:'up',      lastvalue:'1 ms',      message:'OK'},
+    {name:'CPU VMware Host', device:'esxi-gdl-02',    group:'Virtualización', status:'warning', lastvalue:'91 %',      message:'Uso alto de CPU'},
+    {name:'Free Disk C:',    device:'srv-ad-01',      group:'Windows',        status:'down',    lastvalue:'0 %',       message:'Host no responde'},
+    {name:'HTTP Portal',     device:'portal-interno', group:'Aplicaciones',   status:'up',      lastvalue:'220 ms',    message:'OK'},
+    {name:'SNMP UPS Battery',device:'ups-dc-01',      group:'Energía',        status:'paused',  lastvalue:'—',         message:'Paused by dependency'},
+    {name:'Memory Usage',    device:'docker-host-01', group:'Linux',          status:'warning', lastvalue:'87 %',      message:'Memoria elevada'},
+    {name:'Custom EXE',      device:'asdk-01',        group:'Service Desk',   status:'up',      lastvalue:'3 s',       message:'OK'},
+    {name:'Interface Gi0/1', device:'cisco-core-01',  group:'Network',        status:'up',      lastvalue:'28 Mbit/s', message:'OK'},
+    {name:'SNMP CPU Load',   device:'cisco-core-01',  group:'Network',        status:'up',      lastvalue:'22 %',      message:'OK'},
+    {name:'Ping DR Site',    device:'fw-dr-01',       group:'DR Site',        status:'down',    lastvalue:'—',         message:'Timeout'}
   ],
   noLimits:[
-    {name:'CPU VMware Host',device:'esxi-gdl-02',lastvalue:'91 %',limitmode:'0'},
-    {name:'Memory Usage',   device:'docker-host-01',lastvalue:'87 %',limitmode:'0'},
-    {name:'Custom EXE',     device:'asdk-01',lastvalue:'3 s',limitmode:'0'}
+    {name:'CPU VMware Host', device:'esxi-gdl-02',    lastvalue:'91 %', limitmode:'0'},
+    {name:'Memory Usage',    device:'docker-host-01', lastvalue:'87 %', limitmode:'0'},
+    {name:'Custom EXE',      device:'asdk-01',        lastvalue:'3 s',  limitmode:'0'}
   ],
   users:[
-    {name:'prtgadmin',          email:'',                       type:'Admin',     risk:'Alto'},
-    {name:'auditor.interno',    email:'auditoria@empresa.local',type:'Read/Write',risk:'Medio'},
-    {name:'svc_api_ro',         email:'',                       type:'Read Only', risk:'Bajo'},
-    {name:'jluis.sanchez',      email:'jluis@empresa.local',    type:'Read/Write',risk:'Medio'}
+    {name:'prtgadmin',       email:'',                        type:'Admin',     risk:'Alto'},
+    {name:'auditor.interno', email:'auditoria@empresa.local', type:'Read/Write',risk:'Medio'},
+    {name:'svc_api_ro',      email:'',                        type:'Read Only', risk:'Bajo'},
+    {name:'jluis.sanchez',   email:'jluis@empresa.local',     type:'Read/Write',risk:'Medio'}
   ],
   notifications:[
-    {name:'Correo NOC',    active:true, trigger:'Threshold / State',          finding:'Correcta'},
-    {name:'SMS Escalación',active:false,trigger:'Sin disparador configurado', finding:'Inactiva — revisar'},
-    {name:'Webhook Jira',  active:true, trigger:'State trigger',              finding:'Correcta'}
+    {name:'Correo NOC',     active:true,  trigger:'Threshold / State',         finding:'Correcta'},
+    {name:'SMS Escalación', active:false, trigger:'Sin disparador configurado', finding:'Inactiva — revisar'},
+    {name:'Webhook Jira',   active:true,  trigger:'State trigger',             finding:'Correcta'}
   ]
 };
 
@@ -447,7 +506,11 @@ let state = JSON.parse(JSON.stringify(DEMO));
 
 /* ══ HELPERS ══ */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const badge = st => {const m={up:['ok','OK'],warning:['warning','Warning'],down:['down','Down'],paused:['paused','Pausado']};const[c,l]=m[st]||['ok',st];return `<span class="badge badge-${c}">${l}</span>`;};
+const badge = st => {
+  const m={up:['ok','OK'],warning:['warning','Warning'],down:['down','Down'],paused:['paused','Pausado']};
+  const[c,l]=m[st]||['ok',st];
+  return `<span class="badge badge-${c}">${l}</span>`;
+};
 const riskBadge = r => `<span class="badge badge-risk-${r==='Alto'?'high':r==='Medio'?'med':'low'}">${esc(r)}</span>`;
 
 /* ══ CHECKLIST ══ */
@@ -489,11 +552,15 @@ function renderSensors(){
   const q=document.getElementById('sensorSearch').value.toLowerCase();
   const rows=state.sensors.filter(s=>(f==='all'||s.status===f)&&[s.name,s.device,s.group,s.message].join(' ').toLowerCase().includes(q));
   const tbody=document.getElementById('sensorTable');
-  tbody.innerHTML=rows.length?rows.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.device)}</td><td>${esc(s.group)}</td><td>${badge(s.status)}</td><td>${esc(s.lastvalue)}</td><td>${esc(s.message)}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty"><i data-lucide="search-x"></i>Sin resultados</div></td></tr>`;
+  tbody.innerHTML=rows.length
+    ?rows.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.device)}</td><td>${esc(s.group)}</td><td>${badge(s.status)}</td><td>${esc(s.lastvalue)}</td><td>${esc(s.message)}</td></tr>`).join('')
+    :`<tr><td colspan="6"><div class="empty"><i data-lucide="search-x"></i>Sin resultados</div></td></tr>`;
 }
 function renderLimits(){
   const tbody=document.getElementById('limitsTable');
-  tbody.innerHTML=state.noLimits.length?state.noLimits.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.device)}</td><td>${esc(s.lastvalue)}</td><td><code>${esc(s.limitmode)}</code></td></tr>`).join(''):`<tr><td colspan="4"><div class="empty"><i data-lucide="check-circle-2"></i>Sin hallazgos</div></td></tr>`;
+  tbody.innerHTML=state.noLimits.length
+    ?state.noLimits.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.device)}</td><td>${esc(s.lastvalue)}</td><td><code>${esc(s.limitmode)}</code></td></tr>`).join('')
+    :`<tr><td colspan="4"><div class="empty"><i data-lucide="check-circle-2"></i>Sin hallazgos</div></td></tr>`;
 }
 function renderUsers(){
   document.getElementById('usersTable').innerHTML=state.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email||'—')}</td><td>${esc(u.type)}</td><td>${riskBadge(u.risk)}</td></tr>`).join('');
@@ -507,13 +574,28 @@ function renderChecklist(){
 
 /* ══ RENDER — instancias ══ */
 function renderInstances(){
-  const grid=document.getElementById('instGrid');
-  const configured=instances.filter(Boolean).length;
-  document.getElementById('instCount').textContent=configured;
+  const configured = instances.filter(Boolean).length;
+  const available  = MAX_INSTANCES - configured;
+  const pct        = Math.round((configured / MAX_INSTANCES) * 100);
 
-  grid.innerHTML=instances.map((inst,i)=>{
-    const isActive=i===activeIdx;
-    if(!inst){
+  // Sidebar mini-bar
+  document.getElementById('capLabel').textContent = `${configured} / ${MAX_INSTANCES} configuradas`;
+  document.getElementById('capPct').textContent   = pct + '%';
+  document.getElementById('capFill').style.width  = pct + '%';
+
+  // Summary block
+  document.getElementById('sumConfigured').textContent = configured;
+  document.getElementById('sumAvailable').textContent  = available;
+  document.getElementById('sumPct').textContent        = pct + '%';
+  document.getElementById('sumFill').style.width       = pct + '%';
+  document.getElementById('sumNote').textContent       = available > 0
+    ? `${available} slot${available!==1?'s':''} disponible${available!==1?'s':''} para futuras instancias`
+    : 'Capacidad máxima alcanzada (14/14)';
+
+  const grid = document.getElementById('instGrid');
+  grid.innerHTML = instances.map((inst, i) => {
+    const isActive = i === activeIdx;
+    if (!inst) {
       return `<div class="inst-card empty-inst">
         <div class="inst-card-info">
           <div class="inst-card-name"><span class="inst-slot-num">${i+1}</span><span style="color:var(--color-text-faint)">Slot disponible</span></div>
@@ -524,19 +606,20 @@ function renderInstances(){
         </div>
       </div>`;
     }
-    const hasHost=!!inst.host;
+    const hasHost = !!inst.host;
     return `<div class="inst-card${isActive?' active-inst':''}">
       <div class="inst-card-info">
         <div class="inst-card-name">
           <span class="inst-slot-num">${i+1}</span>
           ${esc(inst.name)}
           ${isActive?'<span class="badge badge-ok" style="font-size:.65rem">Activa</span>':''}
+          ${!hasHost?'<span class="badge badge-warning" style="font-size:.65rem;opacity:.8">Sin host</span>':''}
         </div>
-        <div class="inst-card-host">${hasHost?esc(inst.host):'<em style="color:var(--color-text-faint)">Host no configurado</em>'}</div>
+        <div class="inst-card-host">${hasHost?esc(inst.host):'<em style="color:var(--color-text-faint)">Host pendiente — haz clic en Editar</em>'}</div>
         <div class="inst-card-user">${inst.user?'Usuario: '+esc(inst.user):''}</div>
       </div>
       <div class="inst-card-actions">
-        ${!isActive?`<button class="btn btn-secondary btn-sm" onclick="selectInstance(${i})" title="Seleccionar como activa"><i data-lucide="check"></i> Seleccionar</button>`:''}
+        ${!isActive?`<button class="btn btn-secondary btn-sm" onclick="selectInstance(${i})" title="Seleccionar como activa"><i data-lucide="check"></i></button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openModal(${i})" title="Editar"><i data-lucide="pencil"></i></button>
         <button class="btn btn-danger btn-sm" onclick="clearInstance(${i})" title="Borrar"><i data-lucide="trash-2"></i></button>
       </div>
@@ -544,132 +627,143 @@ function renderInstances(){
   }).join('');
 
   // Reconstruir selector de sidebar
-  const sel=document.getElementById('activeInstSelect');
-  sel.innerHTML=instances.map((inst,i)=>{
-    const label=inst?(inst.name+(inst.host?' — '+inst.host.replace(/https?:\/\//,'').split('/')[0]:'')):`Slot ${i+1} (vacío)`;
+  const sel = document.getElementById('activeInstSelect');
+  sel.innerHTML = instances.map((inst, i) => {
+    const label = inst
+      ? `${inst.name}${inst.host?' — '+inst.host.replace(/https?:\/\//,'').split('/')[0]:' (sin host)'}`
+      : `Slot ${i+1} (vacío)`;
     return `<option value="${i}" ${i===activeIdx?'selected':''} ${!inst?'disabled':''} style="${!inst?'color:var(--color-text-faint)':''}">
       ${i+1}. ${esc(label)}
     </option>`;
   }).join('');
 
   // Llenar form de conexión rápida con instancia activa
-  const act=instances[activeIdx];
-  if(act){
-    document.getElementById('hostInput').value=act.host||'';
-    document.getElementById('userInput').value=act.user||'auditor';
-    document.getElementById('secretInput').value=act.secret||'';
-    document.getElementById('topbarTitle').textContent=`PRTG Audit — ${act.name}`;
-    document.getElementById('topbarSub').textContent=act.host||'Host no configurado';
+  const act = instances[activeIdx];
+  if (act) {
+    document.getElementById('hostInput').value   = act.host   || '';
+    document.getElementById('userInput').value   = act.user   || 'auditor';
+    document.getElementById('secretInput').value = act.secret || '';
+    document.getElementById('topbarTitle').textContent = `PRTG Audit — ${act.name}`;
+    document.getElementById('topbarSub').textContent   = act.host || 'Host pendiente — configura en Instancias';
   }
-  if(window.lucide) lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 
 function updateSidebarStatus(type){
-  const dot=document.getElementById('sidebarDot');
-  const txt=document.getElementById('sidebarStatus');
-  dot.className='inst-dot'+(type==='connected'?' connected':type==='demo'?' demo':'');
-  txt.textContent=type==='connected'?'Conectado — datos reales':type==='demo'?'Datos demo cargados':'Sin datos cargados';
+  const dot = document.getElementById('sidebarDot');
+  const txt = document.getElementById('sidebarStatus');
+  dot.className = 'inst-dot'+(type==='connected'?' connected':type==='demo'?' demo':'');
+  txt.textContent = type==='connected'?'Conectado — datos reales':type==='demo'?'Datos demo cargados':'Sin datos cargados';
 }
 
 function selectInstance(idx){
-  if(!instances[idx]) return;
-  activeIdx=idx;
+  if (!instances[idx]) return;
+  activeIdx = idx;
   renderInstances();
   updateSidebarStatus('idle');
 }
 
 function clearInstance(idx){
-  if(!confirm(`¿Borrar la configuración del slot ${idx+1}?`)) return;
-  instances[idx]=null;
-  if(activeIdx===idx){ activeIdx=instances.findIndex(Boolean); if(activeIdx<0) activeIdx=0; }
+  if (!confirm(`¿Borrar la configuración del slot ${idx+1}?`)) return;
+  instances[idx] = null;
+  if (activeIdx === idx){
+    activeIdx = instances.findIndex(Boolean);
+    if (activeIdx < 0) activeIdx = 0;
+  }
   renderInstances();
 }
 
 /* ══ MODAL ══ */
 function openModal(idx){
-  editIdx=idx;
-  const inst=instances[idx];
-  document.getElementById('mName').value=inst?.name||`Sitio ${idx+1}`;
-  document.getElementById('mHost').value=inst?.host||'';
-  document.getElementById('mUser').value=inst?.user||'auditor';
-  document.getElementById('mSecret').value=inst?.secret||'';
+  editIdx = idx;
+  const inst = instances[idx];
+  document.getElementById('mName').value   = inst?.name   || `Sitio ${idx+1}`;
+  document.getElementById('mHost').value   = inst?.host   || '';
+  document.getElementById('mUser').value   = inst?.user   || 'auditor';
+  document.getElementById('mSecret').value = inst?.secret || '';
+  document.getElementById('modalTitle').textContent = inst
+    ? `Editar slot ${idx+1} — ${inst.name}`
+    : `Configurar slot ${idx+1}`;
   document.getElementById('instModal').classList.remove('hidden');
   document.getElementById('mName').focus();
 }
 function closeModal(){ document.getElementById('instModal').classList.add('hidden'); editIdx=-1; }
-document.getElementById('modalCancel').addEventListener('click',closeModal);
-document.getElementById('instModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeModal(); });
-document.getElementById('modalSave').addEventListener('click',()=>{
-  const name=document.getElementById('mName').value.trim();
-  const host=document.getElementById('mHost').value.trim();
-  const user=document.getElementById('mUser').value.trim()||'auditor';
-  const secret=document.getElementById('mSecret').value.trim();
-  if(!name){alert('Ingresa un nombre para el sitio.');return;}
-  instances[editIdx]={name,host,user,secret,connected:false};
-  if(editIdx===activeIdx||!instances[activeIdx]) activeIdx=editIdx;
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('instModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+document.getElementById('modalSave').addEventListener('click', ()=>{
+  const name   = document.getElementById('mName').value.trim();
+  const host   = document.getElementById('mHost').value.trim();
+  const user   = document.getElementById('mUser').value.trim() || 'auditor';
+  const secret = document.getElementById('mSecret').value.trim();
+  if (!name){ alert('Ingresa un nombre para el sitio.'); return; }
+  instances[editIdx] = {name, host, user, secret, connected:false};
+  if (editIdx===activeIdx || !instances[activeIdx]) activeIdx=editIdx;
   closeModal();
   renderInstances();
 });
 
 /* Botón "Agregar instancia" — busca primer slot vacío */
-document.getElementById('addInstBtn').addEventListener('click',()=>{
-  const emptyIdx=instances.findIndex(i=>!i);
-  if(emptyIdx<0){alert('Ya tienes los 14 slots ocupados.');return;}
+document.getElementById('addInstBtn').addEventListener('click', ()=>{
+  const emptyIdx = instances.findIndex(i=>!i);
+  if (emptyIdx < 0){ alert('Ya tienes los 14 slots ocupados.'); return; }
   openModal(emptyIdx);
 });
 
 /* Cambio de instancia activa desde el select del sidebar */
-document.getElementById('activeInstSelect').addEventListener('change',e=>{
-  const idx=parseInt(e.target.value,10);
-  if(!instances[idx]) return;
+document.getElementById('activeInstSelect').addEventListener('change', e=>{
+  const idx = parseInt(e.target.value, 10);
+  if (!instances[idx]) return;
   selectInstance(idx);
 });
 
 /* ══ API FETCH ══ */
-async function fetchPRTG(host,content,user,secret){
-  const url=new URL(host.replace(/\/$/,'')+'/api/table.json');
-  const p={content,count:'5000',output:'json'};
-  if(content==='sensors') p.columns='objid,name,device,group,status,lastvalue,message';
-  else if(content==='devices') p.columns='objid,name,host,group,status';
-  else if(content==='users') p.columns='objid,name,email,type';
-  else if(content==='notifications') p.columns='objid,name,active';
+async function fetchPRTG(host, content, user, secret){
+  const url = new URL(host.replace(/\/$/, '')+'/api/table.json');
+  const p = {content, count:'5000', output:'json'};
+  if (content==='sensors')       p.columns='objid,name,device,group,status,lastvalue,message';
+  else if (content==='devices')  p.columns='objid,name,host,group,status';
+  else if (content==='users')    p.columns='objid,name,email,type';
+  else if (content==='notifications') p.columns='objid,name,active';
   p.username=user; p.passhash=secret;
   Object.entries(p).forEach(([k,v])=>url.searchParams.set(k,v));
-  const r=await fetch(url.toString(),{headers:{Accept:'application/json'}});
-  if(!r.ok) throw new Error('HTTP '+r.status);
+  const r = await fetch(url.toString(), {headers:{Accept:'application/json'}});
+  if (!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
 
 async function connectAudit(){
-  const inst=instances[activeIdx];
-  const host=document.getElementById('hostInput').value.trim()||(inst?.host||'');
-  const user=document.getElementById('userInput').value.trim()||(inst?.user||'auditor');
-  const secret=document.getElementById('secretInput').value.trim()||(inst?.secret||'');
-  if(!host||!secret){alert('La instancia activa no tiene host o passhash configurado.\nVe a Instancias y edita el slot correspondiente.');return;}
-  try{
-    const [sRaw,dRaw,uRaw,nRaw]=await Promise.all([
+  const inst   = instances[activeIdx];
+  const host   = document.getElementById('hostInput').value.trim()   || (inst?.host   || '');
+  const user   = document.getElementById('userInput').value.trim()   || (inst?.user   || 'auditor');
+  const secret = document.getElementById('secretInput').value.trim() || (inst?.secret || '');
+  if (!host || !secret){
+    alert('La instancia activa no tiene host o passhash configurado.\nVe a Instancias y edita el slot correspondiente.');
+    return;
+  }
+  try {
+    const [sRaw,dRaw,uRaw,nRaw] = await Promise.all([
       fetchPRTG(host,'sensors',user,secret),
       fetchPRTG(host,'devices',user,secret),
       fetchPRTG(host,'users',user,secret),
       fetchPRTG(host,'notifications',user,secret)
     ]);
-    const sensors=(sRaw.sensors||[]).map(s=>({
-      name:s.name||'N/A',device:s.device||'N/A',group:s.group||'N/A',
+    const sensors = (sRaw.sensors||[]).map(s=>({
+      name:s.name||'N/A', device:s.device||'N/A', group:s.group||'N/A',
       status:/down/i.test(s.status)?'down':/warning/i.test(s.status)?'warning':/paused/i.test(s.status)?'paused':'up',
-      lastvalue:s.lastvalue||'—',message:s.message||''
+      lastvalue:s.lastvalue||'—', message:s.message||''
     }));
-    state={
+    state = {
       devices:(dRaw.devices||[]).length,
       sensors,
       noLimits:sensors.filter(s=>['warning','down'].includes(s.status)).slice(0,10).map(s=>({name:s.name,device:s.device,lastvalue:s.lastvalue,limitmode:'pendiente'})),
       users:(uRaw.users||[]).map(u=>({name:u.name||'N/A',email:u.email||'',type:u.type||'',risk:/admin/i.test(u.name||'')?'Alto':/read.?only/i.test(u.type||'')?'Bajo':'Medio'})),
       notifications:(nRaw.notifications||[]).map(n=>({name:n.name||'N/A',active:String(n.active)==='1',trigger:'Ver en PRTG',finding:String(n.active)==='1'?'Correcta':'Inactiva — revisar'}))
     };
-    if(inst) inst.connected=true;
+    if (inst) inst.connected=true;
     updateSidebarStatus('connected');
     render();
     alert('Datos cargados correctamente desde '+host);
-  }catch(e){
+  } catch(e) {
     console.error(e);
     alert('Error al conectar: '+e.message+'\n\nVerifica la URL, credenciales y que PRTG esté accesible desde esta red.\nSi ves errores de CORS, usa el script Python del repositorio.');
   }
@@ -677,42 +771,61 @@ async function connectAudit(){
 
 /* ══ EXPORT CSV ══ */
 function exportCsv(){
-  const instName=instances[activeIdx]?.name||'instancia';
-  const rows=[['tipo','nombre','dispositivo','grupo','estado','valor','mensaje_hallazgo']];
+  const instName = instances[activeIdx]?.name || 'instancia';
+  const rows = [['tipo','nombre','dispositivo','grupo','estado','valor','mensaje_hallazgo']];
   state.sensors.forEach(s=>rows.push(['sensor',s.name,s.device,s.group,s.status,s.lastvalue,s.message]));
   state.noLimits.forEach(s=>rows.push(['sin_umbral',s.name,s.device,'',s.limitmode,s.lastvalue,'Sin LimitMaxError configurado']));
   state.users.forEach(u=>rows.push(['usuario',u.name,u.email,'',u.type,'',u.risk+' riesgo']));
   state.notifications.forEach(n=>rows.push(['notificacion',n.name,'','',n.active?'activa':'inactiva','',n.finding]));
   buildChecklist().forEach(([label,pass])=>rows.push(['checklist',label,'','',pass?'cumple':'revisar','',pass?'OK':'Requiere atención']));
-  const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='prtg-audit-'+instName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')+'-'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();URL.revokeObjectURL(a.href);
+  const csv = rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'prtg-audit-'+instName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 /* ══ RENDER GENERAL ══ */
 function render(){
-  renderKPIs();renderSensors();renderLimits();renderUsers();renderNotifications();renderChecklist();
-  if(window.lucide) lucide.createIcons();
+  renderKPIs();
+  renderSensors();
+  renderLimits();
+  renderUsers();
+  renderNotifications();
+  renderChecklist();
+  if (window.lucide) lucide.createIcons();
 }
 
 /* ══ TEMA ══ */
-let currentTheme=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
-document.documentElement.setAttribute('data-theme',currentTheme);
-const themeBtn=document.getElementById('themeToggle');
-function updateThemeIcon(){themeBtn.innerHTML=currentTheme==='dark'?'<i data-lucide="sun"></i>':'<i data-lucide="moon"></i>';if(window.lucide)lucide.createIcons();}
-themeBtn.addEventListener('click',()=>{currentTheme=currentTheme==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',currentTheme);updateThemeIcon();});
+let currentTheme = matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+document.documentElement.setAttribute('data-theme', currentTheme);
+const themeBtn = document.getElementById('themeToggle');
+function updateThemeIcon(){
+  themeBtn.innerHTML = currentTheme==='dark'
+    ? '<i data-lucide="sun"></i>'
+    : '<i data-lucide="moon"></i>';
+  if (window.lucide) lucide.createIcons();
+}
+themeBtn.addEventListener('click', ()=>{
+  currentTheme = currentTheme==='dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  updateThemeIcon();
+});
 
 /* ══ EVENTOS ══ */
-document.getElementById('loadDemoBtn').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));updateSidebarStatus('demo');render();});
-document.getElementById('loadDemoBtn2').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));updateSidebarStatus('demo');render();});
-[document.getElementById('connectBtn'),document.getElementById('connectBtn2')].forEach(b=>b.addEventListener('click',connectAudit));
-document.getElementById('exportBtn').addEventListener('click',exportCsv);
-document.getElementById('sensorFilter').addEventListener('change',renderSensors);
-document.getElementById('sensorSearch').addEventListener('input',renderSensors);
+document.getElementById('loadDemoBtn').addEventListener('click',  ()=>{ state=JSON.parse(JSON.stringify(DEMO)); updateSidebarStatus('demo'); render(); });
+document.getElementById('loadDemoBtn2').addEventListener('click', ()=>{ state=JSON.parse(JSON.stringify(DEMO)); updateSidebarStatus('demo'); render(); });
+[document.getElementById('connectBtn'), document.getElementById('connectBtn2')].forEach(b=>b.addEventListener('click', connectAudit));
+document.getElementById('exportBtn').addEventListener('click', exportCsv);
+document.getElementById('sensorFilter').addEventListener('change', renderSensors);
+document.getElementById('sensorSearch').addEventListener('input',  renderSensors);
 document.querySelectorAll('.nav a').forEach(a=>{
-  a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));a.classList.add('active');});
+  a.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));
+    a.classList.add('active');
+  });
 });
 
 /* ══ INIT ══ */
