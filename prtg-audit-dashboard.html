@@ -32,15 +32,25 @@
     a{color:inherit;text-decoration:none} button,input,select{font:inherit;color:inherit} button{cursor:pointer}
     .skip-link{position:absolute;left:-9999px;top:auto} .skip-link:focus{left:1rem;top:1rem;z-index:9999;background:var(--color-surface-2);padding:.75rem 1rem;border-radius:var(--radius-md)}
     /* Layout */
-    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+    .app{display:grid;grid-template-columns:272px 1fr;min-height:100vh}
     .sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;padding:var(--space-6) var(--space-5);background:var(--color-surface);border-right:1px solid color-mix(in oklab,var(--color-text) 10%,transparent)}
-    .brand{display:flex;align-items:center;gap:.85rem;margin-bottom:var(--space-8)}
+    .brand{display:flex;align-items:center;gap:.85rem;margin-bottom:var(--space-6)}
     .brand-logo{width:40px;height:40px;flex-shrink:0;color:var(--color-primary)}
     .brand h1{font-size:.95rem;font-weight:700;margin:0;line-height:1.2} .brand p{font-size:var(--text-xs);color:var(--color-text-muted);margin:.15rem 0 0}
+    /* Instance selector block */
+    .inst-block{margin-bottom:var(--space-5);padding:var(--space-3) var(--space-4);background:var(--color-surface-offset);border-radius:var(--radius-lg);border:1px solid color-mix(in oklab,var(--color-text) 8%,transparent)}
+    .inst-block label{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.07em;color:var(--color-text-faint);font-weight:600;display:block;margin-bottom:.45rem}
+    .inst-select{width:100%;padding:.5rem .7rem;border-radius:var(--radius-md);border:1px solid color-mix(in oklab,var(--color-text) 12%,transparent);background:var(--color-surface-2);color:var(--color-text);font-size:var(--text-sm);cursor:pointer}
+    .inst-select:focus{outline:2px solid var(--color-primary);outline-offset:2px}
+    .inst-status{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:var(--text-xs);color:var(--color-text-muted)}
+    .inst-dot{width:8px;height:8px;border-radius:50%;background:var(--color-surface-dynamic);flex-shrink:0;transition:background .3s}
+    .inst-dot.connected{background:var(--color-success)}
+    .inst-dot.demo{background:var(--color-warning)}
     nav.nav{display:grid;gap:.35rem}
     nav.nav a{display:flex;align-items:center;gap:.75rem;padding:.75rem .9rem;border-radius:var(--radius-lg);color:var(--color-text-muted);font-size:var(--text-sm);transition:background var(--transition),color var(--transition)}
     nav.nav a:hover,nav.nav a.active{background:color-mix(in oklab,var(--color-primary) 10%,var(--color-surface));color:var(--color-text)}
     nav.nav a i{flex-shrink:0}
+    .nav-divider{height:1px;background:var(--color-divider);margin:.35rem 0}
     .main{display:flex;flex-direction:column;min-width:0}
     .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:var(--space-3) var(--space-6);backdrop-filter:blur(16px);background:color-mix(in oklab,var(--color-bg) 80%,transparent);border-bottom:1px solid color-mix(in oklab,var(--color-text) 8%,transparent)}
     .topbar-left{min-width:0} .topbar-title{font-size:var(--text-sm);font-weight:600;margin:0} .topbar-sub{font-size:var(--text-xs);color:var(--color-text-muted);margin:.1rem 0 0}
@@ -54,6 +64,8 @@
     .btn-primary{background:var(--color-primary);color:var(--color-text-inverse)} .btn-primary:hover{background:var(--color-primary-hover)}
     .btn-secondary{background:var(--color-surface-offset);border-color:color-mix(in oklab,var(--color-text) 10%,transparent)} .btn-secondary:hover{background:var(--color-surface-dynamic)}
     .btn-ghost{background:transparent;border-color:color-mix(in oklab,var(--color-text) 10%,transparent)} .btn-ghost:hover{background:var(--color-surface-offset)}
+    .btn-sm{min-height:32px;padding:.4rem .75rem;font-size:var(--text-xs)}
+    .btn-danger{background:color-mix(in oklab,var(--color-error) 12%,var(--color-surface));color:var(--color-error);border-color:color-mix(in oklab,var(--color-error) 20%,transparent)} .btn-danger:hover{background:color-mix(in oklab,var(--color-error) 20%,var(--color-surface))}
     /* Hero */
     .hero{padding:var(--space-6);display:grid;grid-template-columns:1.5fr 1fr;gap:var(--space-6);align-items:start}
     .hero h2{font-size:var(--text-xl);font-weight:800;margin:0 0 .6rem;line-height:1.15}
@@ -105,6 +117,24 @@
     /* Empty state */
     .empty{padding:var(--space-8) var(--space-4);text-align:center;color:var(--color-text-muted);font-size:var(--text-sm)}
     .empty i{display:block;margin:0 auto var(--space-3)}
+    /* ── Instancias Manager ── */
+    .inst-grid{display:grid;gap:var(--space-4)}
+    .inst-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-xl);background:var(--color-surface-offset);border:1px solid color-mix(in oklab,var(--color-text) 8%,transparent);transition:border-color var(--transition)}
+    .inst-card.active-inst{border-color:var(--color-primary);background:color-mix(in oklab,var(--color-primary) 5%,var(--color-surface))}
+    .inst-card.empty-inst{opacity:.55}
+    .inst-card-info{min-width:0}
+    .inst-card-name{font-weight:700;font-size:var(--text-sm);margin:0 0 .2rem;display:flex;align-items:center;gap:.5rem}
+    .inst-card-host{font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .inst-card-user{font-size:var(--text-xs);color:var(--color-text-faint);margin-top:.2rem}
+    .inst-card-actions{display:flex;gap:.4rem;flex-shrink:0}
+    .inst-slot-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:var(--radius-full);background:var(--color-surface-dynamic);color:var(--color-text-faint);font-size:.7rem;font-weight:700;flex-shrink:0}
+    .active-inst .inst-slot-num{background:var(--color-primary);color:var(--color-text-inverse)}
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;z-index:100;background:oklch(0 0 0 / .45);display:flex;align-items:center;justify-content:center;padding:var(--space-4)}
+    .modal-backdrop.hidden{display:none}
+    .modal{background:var(--color-surface-2);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);width:100%;max-width:480px;padding:var(--space-6)}
+    .modal h2{font-size:var(--text-lg);font-weight:700;margin:0 0 var(--space-5)}
+    .modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:var(--space-5)}
     /* Mobile */
     @media(max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid color-mix(in oklab,var(--color-text) 8%,transparent)}.hero{grid-template-columns:1fr}.split{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:640px){.kpi-grid{grid-template-columns:1fr 1fr}.container,.sidebar{padding:var(--space-4)}.actions .btn{flex:1}}
@@ -112,6 +142,32 @@
 </head>
 <body>
 <a href="#main" class="skip-link">Saltar al contenido</a>
+
+<!-- MODAL EDITAR INSTANCIA -->
+<div class="modal-backdrop hidden" id="instModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h2 id="modalTitle">Configurar instancia</h2>
+    <div class="form-grid">
+      <label class="field">Nombre del sitio
+        <input class="inp" id="mName" type="text" placeholder="Ej: Planta Monterrey">
+      </label>
+      <label class="field">Host PRTG (URL completa)
+        <input class="inp" id="mHost" type="url" placeholder="https://prtg.sitio.com">
+      </label>
+      <label class="field">Usuario API
+        <input class="inp" id="mUser" type="text" placeholder="auditor">
+      </label>
+      <label class="field">Passhash o API token
+        <input class="inp" id="mSecret" type="password" placeholder="Passhash de My Account">
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modalCancel">Cancelar</button>
+      <button class="btn btn-primary" id="modalSave"><i data-lucide="save"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -126,6 +182,17 @@
         <p>Revisión técnica interna</p>
       </div>
     </div>
+
+    <!-- Selector de instancia activa -->
+    <div class="inst-block">
+      <label for="activeInstSelect">Instancia activa</label>
+      <select class="inst-select" id="activeInstSelect" aria-label="Seleccionar instancia PRTG activa"></select>
+      <div class="inst-status">
+        <span class="inst-dot" id="sidebarDot"></span>
+        <span id="sidebarStatus">Sin datos cargados</span>
+      </div>
+    </div>
+
     <nav class="nav" aria-label="Secciones">
       <a href="#resumen" class="active"><i data-lucide="layout-dashboard"></i>Resumen</a>
       <a href="#sensores"><i data-lucide="activity"></i>Sensores</a>
@@ -133,57 +200,62 @@
       <a href="#usuarios"><i data-lucide="users"></i>Usuarios</a>
       <a href="#notificaciones"><i data-lucide="bell-ring"></i>Notificaciones</a>
       <a href="#checklist"><i data-lucide="clipboard-check"></i>Checklist</a>
+      <div class="nav-divider"></div>
+      <a href="#instancias"><i data-lucide="server"></i>Instancias</a>
       <a href="#scripts"><i data-lucide="terminal-square"></i>Scripts API</a>
     </nav>
   </aside>
+
   <!-- MAIN -->
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <p class="topbar-title">PRTG Audit Dashboard</p>
-        <p class="topbar-sub">Auditoría interna de configuración y estado de servidores PRTG</p>
+        <p class="topbar-title" id="topbarTitle">PRTG Audit Dashboard</p>
+        <p class="topbar-sub" id="topbarSub">Auditoría interna de configuración y estado de servidores PRTG</p>
       </div>
       <div class="actions">
         <button class="btn btn-secondary" id="themeToggle" aria-label="Cambiar tema"><i data-lucide="moon"></i></button>
         <button class="btn btn-secondary" id="loadDemoBtn"><i data-lucide="database-zap"></i> Demo</button>
-        <button class="btn btn-primary" id="connectBtn"><i data-lucide="plug-zap"></i> Conectar y auditar</button>
+        <button class="btn btn-primary" id="connectBtn"><i data-lucide="plug-zap"></i> Auditar instancia</button>
         <button class="btn btn-ghost" id="exportBtn"><i data-lucide="download"></i> Exportar CSV</button>
       </div>
     </header>
+
     <main id="main" class="container">
       <!-- HERO + CONEXIÓN -->
       <section id="resumen" class="panel hero" aria-labelledby="heroTitle">
         <div>
-          <p class="eyebrow">Auditoría PRTG</p>
-          <h2 id="heroTitle">Revisa y valida tus instancias antes de la auditoría interna.</h2>
-          <p>Conecta tu servidor PRTG usando usuario + passhash. El passhash se obtiene desde <strong>My Account → Show Passhash</strong> y es el método recomendado para llamadas a la API HTTP de PRTG.</p>
+          <p class="eyebrow">Auditoría PRTG · Multi-sitio</p>
+          <h2 id="heroTitle">Gestiona hasta 14 instancias PRTG desde un solo panel.</h2>
+          <p>Configura cada sitio una vez en la sección <strong>Instancias</strong>. Selecciona la instancia activa en el sidebar y audítala con un clic. Todas las auditorías usan passhash — obtenido desde <strong>My Account → Show Passhash</strong>.</p>
           <div class="chip-row">
+            <span class="chip"><i data-lucide="server"></i> Hasta 14 instancias</span>
             <span class="chip"><i data-lucide="shield-check"></i> Passhash o API token</span>
-            <span class="chip"><i data-lucide="rows-3"></i> JSON · XML · CSV</span>
-            <span class="chip"><i data-lucide="layers-3"></i> count=5000 por llamada</span>
-            <span class="chip"><i data-lucide="wifi"></i> CORS: usa en red interna</span>
+            <span class="chip"><i data-lucide="rows-3"></i> JSON · CSV export</span>
+            <span class="chip"><i data-lucide="wifi"></i> CORS: usar en red interna</span>
           </div>
         </div>
         <div class="panel conn-form">
-          <p class="eyebrow" style="margin-bottom:.9rem">Configurar conexión</p>
+          <p class="eyebrow" style="margin-bottom:.9rem">Instancia seleccionada</p>
           <div class="form-grid">
-            <label class="field">Host PRTG
-              <input class="inp" id="hostInput" type="url" placeholder="https://prtg.empresa.com">
+            <label class="field">Sitio
+              <input class="inp" id="hostInput" type="url" placeholder="Selecciona una instancia configurada" readonly>
             </label>
             <label class="field">Usuario API
-              <input class="inp" id="userInput" type="text" placeholder="auditor" value="auditor">
+              <input class="inp" id="userInput" type="text" placeholder="—" readonly>
             </label>
-            <label class="field">Passhash o API token
-              <input class="inp" id="secretInput" type="password" placeholder="Passhash de My Account">
+            <label class="field">Passhash / Token
+              <input class="inp" id="secretInput" type="password" placeholder="—">
             </label>
           </div>
-          <p class="hint">⚠️ Usa HTTPS y red interna para evitar exponer credenciales. El navegador puede recibir errores CORS si PRTG no está configurado para ello — en ese caso usa el script Python del repositorio.</p>
+          <p class="hint">Los campos Host y Usuario se llenan automáticamente al seleccionar la instancia. Solo ingresa o confirma el passhash si no estaba guardado.</p>
           <div style="margin-top:1rem;display:flex;gap:.6rem;flex-wrap:wrap">
             <button class="btn btn-primary" id="connectBtn2"><i data-lucide="plug-zap"></i> Conectar y auditar</button>
             <button class="btn btn-secondary" id="loadDemoBtn2"><i data-lucide="database-zap"></i> Cargar demo</button>
           </div>
         </div>
       </section>
+
       <!-- KPIs -->
       <section class="kpi-grid" aria-label="Indicadores clave">
         <article class="panel kpi"><div class="eyebrow">Dispositivos</div><div class="metric" id="kpiDevices">—</div><div class="trend">Total inventariados</div></article>
@@ -192,6 +264,7 @@
         <article class="panel kpi"><div class="eyebrow">Sin umbrales</div><div class="metric warn" id="kpiNoLimits">—</div><div class="trend">Hallazgo config</div></article>
         <article class="panel kpi"><div class="eyebrow">Score auditoría</div><div class="metric" id="kpiScore">—</div><div class="trend">Checklist automático</div></article>
       </section>
+
       <!-- SENSORES -->
       <section id="sensores" class="panel section" aria-labelledby="sensoresTitle">
         <h3 id="sensoresTitle">Sensores — Estado operativo</h3>
@@ -212,6 +285,7 @@
           </table>
         </div>
       </section>
+
       <!-- SPLIT: UMBRALES + USUARIOS -->
       <div class="split">
         <section id="umbrales" class="panel section" aria-labelledby="umbralesTitle">
@@ -225,7 +299,7 @@
           </div>
         </section>
         <section id="usuarios" class="panel section" aria-labelledby="usuariosTitle">
-          <h3 id="usuariosTitle">Usuarios & accesos</h3>
+          <h3 id="usuariosTitle">Usuarios &amp; accesos</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Usuario</th><th>Email</th><th>Tipo</th><th>Riesgo</th></tr></thead>
@@ -234,6 +308,7 @@
           </div>
         </section>
       </div>
+
       <!-- NOTIFICACIONES -->
       <section id="notificaciones" class="panel section" aria-labelledby="notificTitle">
         <h3 id="notificTitle">Notificaciones — Plantillas y estado</h3>
@@ -244,11 +319,25 @@
           </table>
         </div>
       </section>
+
       <!-- CHECKLIST -->
       <section id="checklist" class="panel section" aria-labelledby="checklistTitle">
         <h3 id="checklistTitle">Checklist de auditoría — 8 verificaciones automáticas</h3>
         <div class="checklist" id="checklistItems"></div>
       </section>
+
+      <!-- ═══ INSTANCIAS ═══ -->
+      <section id="instancias" class="panel section" aria-labelledby="instTitle">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
+          <div>
+            <h3 id="instTitle" style="margin:0 0 .25rem">Instancias PRTG — Gestión de sitios</h3>
+            <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin:0">Capacidad: <strong id="instCount">0</strong> / 14 instancias configuradas. Haz clic en <em>Editar</em> para configurar cualquier slot.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="addInstBtn" style="flex-shrink:0"><i data-lucide="plus"></i> Agregar instancia</button>
+        </div>
+        <div class="inst-grid" id="instGrid"></div>
+      </section>
+
       <!-- SCRIPTS API -->
       <section id="scripts" class="panel section" aria-labelledby="scriptsTitle">
         <h3 id="scriptsTitle">Scripts API — Consultas útiles</h3>
@@ -270,27 +359,26 @@ content=devices\
 &passhash=TU_PASSHASH"</div>
           </div>
           <div>
-            <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin:0 0 .75rem"><strong>Python — auditoría rápida:</strong></p>
+            <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin:0 0 .75rem"><strong>Python — auditoría multi-sitio:</strong></p>
             <div class="codebox">import requests
 
-r = requests.get(
-  "https://tuprtg/api/table.json",
-  params={
-    "content": "sensors",
-    "columns": "objid,name,device,"
-               "group,status,"
-               "lastvalue,message",
-    "count": 5000,
-    "username": "auditor",
-    "passhash": "TU_PASSHASH",
-  },
-  verify=False,
-  timeout=30,
-)
-data = r.json()
-for s in data["sensors"]:
-    if s["status"] != "Up":
-        print(s["name"], s["status"])</div>
+SITES = [
+  {"name":"GDL","host":"https://prtg-gdl.empresa.com","passhash":"HASH1"},
+  {"name":"MTY","host":"https://prtg-mty.empresa.com","passhash":"HASH2"},
+  # ... hasta 14 sitios
+]
+
+for site in SITES:
+  r = requests.get(
+    site["host"]+"/api/table.json",
+    params={"content":"sensors","count":5000,
+            "username":"auditor",
+            "passhash":site["passhash"]},
+    verify=False, timeout=30)
+  data = r.json()
+  down = [s for s in data["sensors"]
+          if s["status"] != "Up"]
+  print(f"{site['name']}: {len(down)} sensores down")</div>
             <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin:.9rem 0 .75rem"><strong>Script completo:</strong></p>
             <p style="font-size:var(--text-sm);color:var(--color-text-muted)">Usa <code>scripts/prtg_audit.py</code> del repositorio para auditoría CLI multi-sitio con exportación a CSV sin restricciones de CORS.</p>
           </div>
@@ -299,69 +387,91 @@ for s in data["sensors"]:
     </main>
   </div>
 </div>
+
 <script>
-/* ==================== DATOS DEMO ==================== */
+/* ══════════════════════════════════════════
+   INSTANCIAS — configuración y estado
+   Capacidad máxima: 14 slots
+══════════════════════════════════════════ */
+const MAX_INSTANCES = 14;
+
+// 5 instancias pre-configuradas (slots 0-4), resto vacíos
+const DEFAULT_INSTANCES = [
+  {name:'Sitio 1 — GDL Principal', host:'', user:'auditor', secret:'', connected:false},
+  {name:'Sitio 2 — MTY',           host:'', user:'auditor', secret:'', connected:false},
+  {name:'Sitio 3 — CDMX',          host:'', user:'auditor', secret:'', connected:false},
+  {name:'Sitio 4 — DR Site',        host:'', user:'auditor', secret:'', connected:false},
+  {name:'Sitio 5 — Planta Norte',   host:'', user:'auditor', secret:'', connected:false},
+  null,null,null,null,null,null,null,null,null   // slots 5-13 vacíos
+];
+
+// Instancias en memoria de sesión (no persisten al recargar — sin localStorage)
+let instances = DEFAULT_INSTANCES.map(i => i ? {...i} : null);
+let activeIdx  = 0;   // índice de instancia activa
+let editIdx    = -1;  // índice editando en modal
+
+/* ══ DATOS DEMO ══ */
 const DEMO = {
   devices: 24,
   sensors: [
-    {name:'Ping Core SW',device:'core-sw-01',group:'Campus GDL',status:'up',lastvalue:'1 ms',message:'OK'},
-    {name:'CPU VMware Host',device:'esxi-gdl-02',group:'Virtualización',status:'warning',lastvalue:'91 %',message:'Uso alto de CPU'},
-    {name:'Free Disk C:',device:'srv-ad-01',group:'Windows',status:'down',lastvalue:'0 %',message:'Host no responde'},
-    {name:'HTTP Portal',device:'portal-interno',group:'Aplicaciones',status:'up',lastvalue:'220 ms',message:'OK'},
-    {name:'SNMP UPS Battery',device:'ups-dc-01',group:'Energía',status:'paused',lastvalue:'—',message:'Paused by dependency'},
-    {name:'Memory Usage',device:'docker-host-01',group:'Linux',status:'warning',lastvalue:'87 %',message:'Memoria elevada'},
-    {name:'Custom EXE',device:'asdk-01',group:'Service Desk',status:'up',lastvalue:'3 s',message:'OK'},
-    {name:'Interface Gi0/1',device:'cisco-core-01',group:'Network',status:'up',lastvalue:'28 Mbit/s',message:'OK'},
-    {name:'SNMP CPU Load',device:'cisco-core-01',group:'Network',status:'up',lastvalue:'22 %',message:'OK'},
-    {name:'Ping DR Site',device:'fw-dr-01',group:'DR Site',status:'down',lastvalue:'—',message:'Timeout'}
+    {name:'Ping Core SW',   device:'core-sw-01',    group:'Campus GDL',     status:'up',      lastvalue:'1 ms',     message:'OK'},
+    {name:'CPU VMware Host',device:'esxi-gdl-02',   group:'Virtualización', status:'warning', lastvalue:'91 %',     message:'Uso alto de CPU'},
+    {name:'Free Disk C:',   device:'srv-ad-01',     group:'Windows',        status:'down',    lastvalue:'0 %',      message:'Host no responde'},
+    {name:'HTTP Portal',    device:'portal-interno',group:'Aplicaciones',   status:'up',      lastvalue:'220 ms',   message:'OK'},
+    {name:'SNMP UPS Battery',device:'ups-dc-01',    group:'Energía',        status:'paused',  lastvalue:'—',        message:'Paused by dependency'},
+    {name:'Memory Usage',   device:'docker-host-01',group:'Linux',          status:'warning', lastvalue:'87 %',     message:'Memoria elevada'},
+    {name:'Custom EXE',     device:'asdk-01',       group:'Service Desk',   status:'up',      lastvalue:'3 s',      message:'OK'},
+    {name:'Interface Gi0/1',device:'cisco-core-01', group:'Network',        status:'up',      lastvalue:'28 Mbit/s',message:'OK'},
+    {name:'SNMP CPU Load',  device:'cisco-core-01', group:'Network',        status:'up',      lastvalue:'22 %',     message:'OK'},
+    {name:'Ping DR Site',   device:'fw-dr-01',      group:'DR Site',        status:'down',    lastvalue:'—',        message:'Timeout'}
   ],
-  noLimits: [
+  noLimits:[
     {name:'CPU VMware Host',device:'esxi-gdl-02',lastvalue:'91 %',limitmode:'0'},
-    {name:'Memory Usage',device:'docker-host-01',lastvalue:'87 %',limitmode:'0'},
-    {name:'Custom EXE',device:'asdk-01',lastvalue:'3 s',limitmode:'0'}
+    {name:'Memory Usage',   device:'docker-host-01',lastvalue:'87 %',limitmode:'0'},
+    {name:'Custom EXE',     device:'asdk-01',lastvalue:'3 s',limitmode:'0'}
   ],
-  users: [
-    {name:'prtgadmin',email:'',type:'Admin',risk:'Alto'},
-    {name:'auditor.interno',email:'auditoria@empresa.local',type:'Read/Write',risk:'Medio'},
-    {name:'svc_api_ro',email:'',type:'Read Only',risk:'Bajo'},
-    {name:'jluis.sanchez',email:'jluis@empresa.local',type:'Read/Write',risk:'Medio'}
+  users:[
+    {name:'prtgadmin',          email:'',                       type:'Admin',     risk:'Alto'},
+    {name:'auditor.interno',    email:'auditoria@empresa.local',type:'Read/Write',risk:'Medio'},
+    {name:'svc_api_ro',         email:'',                       type:'Read Only', risk:'Bajo'},
+    {name:'jluis.sanchez',      email:'jluis@empresa.local',    type:'Read/Write',risk:'Medio'}
   ],
-  notifications: [
-    {name:'Correo NOC',active:true,trigger:'Threshold / State',finding:'Correcta'},
-    {name:'SMS Escalación',active:false,trigger:'Sin disparador configurado',finding:'Inactiva — revisar'},
-    {name:'Webhook Jira',active:true,trigger:'State trigger',finding:'Correcta'}
+  notifications:[
+    {name:'Correo NOC',    active:true, trigger:'Threshold / State',          finding:'Correcta'},
+    {name:'SMS Escalación',active:false,trigger:'Sin disparador configurado', finding:'Inactiva — revisar'},
+    {name:'Webhook Jira',  active:true, trigger:'State trigger',              finding:'Correcta'}
   ]
 };
 
 let state = JSON.parse(JSON.stringify(DEMO));
 
-/* ==================== HELPERS ==================== */
+/* ══ HELPERS ══ */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const badge = (st) => {const m={up:['ok','OK'],warning:['warning','Warning'],down:['down','Down'],paused:['paused','Pausado']};const[c,l]=m[st]||['ok',st];return `<span class="badge badge-${c}">${l}</span>`;};
+const badge = st => {const m={up:['ok','OK'],warning:['warning','Warning'],down:['down','Down'],paused:['paused','Pausado']};const[c,l]=m[st]||['ok',st];return `<span class="badge badge-${c}">${l}</span>`;};
 const riskBadge = r => `<span class="badge badge-risk-${r==='Alto'?'high':r==='Medio'?'med':'low'}">${esc(r)}</span>`;
 
-/* ==================== CHECKLIST ==================== */
+/* ══ CHECKLIST ══ */
 function buildChecklist(){
-  const down = state.sensors.filter(s=>s.status==='down').length;
-  const warn = state.sensors.filter(s=>s.status==='warning').length;
-  const paused = state.sensors.filter(s=>s.status==='paused').length;
-  const noLimits = state.noLimits.length;
-  const notifOff = state.notifications.filter(n=>!n.active).length;
-  const riskHigh = state.users.filter(u=>u.risk==='Alto').length;
+  const down=state.sensors.filter(s=>s.status==='down').length;
+  const warn=state.sensors.filter(s=>s.status==='warning').length;
+  const paused=state.sensors.filter(s=>s.status==='paused').length;
+  const noLimits=state.noLimits.length;
+  const notifOff=state.notifications.filter(n=>!n.active).length;
+  const riskHigh=state.users.filter(u=>u.risk==='Alto').length;
   return [
     ['Sin sensores en estado Down',down===0],
-    ['Warnings controlados (< 5)',warn < 5],
+    ['Warnings controlados (< 5)',warn<5],
     ['Sin sensores sin umbrales',noLimits===0],
     ['Sin sensores pausados sin justificación',paused===0],
     ['Todas las notificaciones activas',notifOff===0],
     ['Sin usuarios de alto riesgo',riskHigh===0],
-    ['Inventario de dispositivos poblado',state.devices > 0],
-    ['Cobertura mínima de sensores (>= 5)',state.sensors.length >= 5],
+    ['Inventario de dispositivos poblado',state.devices>0],
+    ['Cobertura mínima de sensores (>= 5)',state.sensors.length>=5],
   ];
 }
 function calcScore(){const c=buildChecklist();return Math.round((c.filter(x=>x[1]).length/c.length)*100);}
 
-/* ==================== RENDER ==================== */
+/* ══ RENDER — datos de auditoría ══ */
 function renderKPIs(){
   const ok=state.sensors.filter(s=>s.status==='up').length;
   const down=state.sensors.filter(s=>s.status==='down').length;
@@ -394,14 +504,129 @@ function renderNotifications(){
 function renderChecklist(){
   document.getElementById('checklistItems').innerHTML=buildChecklist().map(([label,pass])=>`<div class="check-item"><span>${esc(label)}</span><span class="badge ${pass?'badge-ok':'badge-down'}">${pass?'Cumple':'Revisar'}</span></div>`).join('');
 }
-function render(){
-  renderKPIs();renderSensors();renderLimits();renderUsers();renderNotifications();renderChecklist();
+
+/* ══ RENDER — instancias ══ */
+function renderInstances(){
+  const grid=document.getElementById('instGrid');
+  const configured=instances.filter(Boolean).length;
+  document.getElementById('instCount').textContent=configured;
+
+  grid.innerHTML=instances.map((inst,i)=>{
+    const isActive=i===activeIdx;
+    if(!inst){
+      return `<div class="inst-card empty-inst">
+        <div class="inst-card-info">
+          <div class="inst-card-name"><span class="inst-slot-num">${i+1}</span><span style="color:var(--color-text-faint)">Slot disponible</span></div>
+          <div class="inst-card-host">No configurado</div>
+        </div>
+        <div class="inst-card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openModal(${i})"><i data-lucide="plus"></i> Configurar</button>
+        </div>
+      </div>`;
+    }
+    const hasHost=!!inst.host;
+    return `<div class="inst-card${isActive?' active-inst':''}">
+      <div class="inst-card-info">
+        <div class="inst-card-name">
+          <span class="inst-slot-num">${i+1}</span>
+          ${esc(inst.name)}
+          ${isActive?'<span class="badge badge-ok" style="font-size:.65rem">Activa</span>':''}
+        </div>
+        <div class="inst-card-host">${hasHost?esc(inst.host):'<em style="color:var(--color-text-faint)">Host no configurado</em>'}</div>
+        <div class="inst-card-user">${inst.user?'Usuario: '+esc(inst.user):''}</div>
+      </div>
+      <div class="inst-card-actions">
+        ${!isActive?`<button class="btn btn-secondary btn-sm" onclick="selectInstance(${i})" title="Seleccionar como activa"><i data-lucide="check"></i> Seleccionar</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="openModal(${i})" title="Editar"><i data-lucide="pencil"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="clearInstance(${i})" title="Borrar"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Reconstruir selector de sidebar
+  const sel=document.getElementById('activeInstSelect');
+  sel.innerHTML=instances.map((inst,i)=>{
+    const label=inst?(inst.name+(inst.host?' — '+inst.host.replace(/https?:\/\//,'').split('/')[0]:'')):`Slot ${i+1} (vacío)`;
+    return `<option value="${i}" ${i===activeIdx?'selected':''} ${!inst?'disabled':''} style="${!inst?'color:var(--color-text-faint)':''}">
+      ${i+1}. ${esc(label)}
+    </option>`;
+  }).join('');
+
+  // Llenar form de conexión rápida con instancia activa
+  const act=instances[activeIdx];
+  if(act){
+    document.getElementById('hostInput').value=act.host||'';
+    document.getElementById('userInput').value=act.user||'auditor';
+    document.getElementById('secretInput').value=act.secret||'';
+    document.getElementById('topbarTitle').textContent=`PRTG Audit — ${act.name}`;
+    document.getElementById('topbarSub').textContent=act.host||'Host no configurado';
+  }
   if(window.lucide) lucide.createIcons();
 }
 
-/* ==================== API FETCH ==================== */
-async function fetchPRTG(host,content,secret){
-  const user=document.getElementById('userInput').value.trim();
+function updateSidebarStatus(type){
+  const dot=document.getElementById('sidebarDot');
+  const txt=document.getElementById('sidebarStatus');
+  dot.className='inst-dot'+(type==='connected'?' connected':type==='demo'?' demo':'');
+  txt.textContent=type==='connected'?'Conectado — datos reales':type==='demo'?'Datos demo cargados':'Sin datos cargados';
+}
+
+function selectInstance(idx){
+  if(!instances[idx]) return;
+  activeIdx=idx;
+  renderInstances();
+  updateSidebarStatus('idle');
+}
+
+function clearInstance(idx){
+  if(!confirm(`¿Borrar la configuración del slot ${idx+1}?`)) return;
+  instances[idx]=null;
+  if(activeIdx===idx){ activeIdx=instances.findIndex(Boolean); if(activeIdx<0) activeIdx=0; }
+  renderInstances();
+}
+
+/* ══ MODAL ══ */
+function openModal(idx){
+  editIdx=idx;
+  const inst=instances[idx];
+  document.getElementById('mName').value=inst?.name||`Sitio ${idx+1}`;
+  document.getElementById('mHost').value=inst?.host||'';
+  document.getElementById('mUser').value=inst?.user||'auditor';
+  document.getElementById('mSecret').value=inst?.secret||'';
+  document.getElementById('instModal').classList.remove('hidden');
+  document.getElementById('mName').focus();
+}
+function closeModal(){ document.getElementById('instModal').classList.add('hidden'); editIdx=-1; }
+document.getElementById('modalCancel').addEventListener('click',closeModal);
+document.getElementById('instModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeModal(); });
+document.getElementById('modalSave').addEventListener('click',()=>{
+  const name=document.getElementById('mName').value.trim();
+  const host=document.getElementById('mHost').value.trim();
+  const user=document.getElementById('mUser').value.trim()||'auditor';
+  const secret=document.getElementById('mSecret').value.trim();
+  if(!name){alert('Ingresa un nombre para el sitio.');return;}
+  instances[editIdx]={name,host,user,secret,connected:false};
+  if(editIdx===activeIdx||!instances[activeIdx]) activeIdx=editIdx;
+  closeModal();
+  renderInstances();
+});
+
+/* Botón "Agregar instancia" — busca primer slot vacío */
+document.getElementById('addInstBtn').addEventListener('click',()=>{
+  const emptyIdx=instances.findIndex(i=>!i);
+  if(emptyIdx<0){alert('Ya tienes los 14 slots ocupados.');return;}
+  openModal(emptyIdx);
+});
+
+/* Cambio de instancia activa desde el select del sidebar */
+document.getElementById('activeInstSelect').addEventListener('change',e=>{
+  const idx=parseInt(e.target.value,10);
+  if(!instances[idx]) return;
+  selectInstance(idx);
+});
+
+/* ══ API FETCH ══ */
+async function fetchPRTG(host,content,user,secret){
   const url=new URL(host.replace(/\/$/,'')+'/api/table.json');
   const p={content,count:'5000',output:'json'};
   if(content==='sensors') p.columns='objid,name,device,group,status,lastvalue,message';
@@ -414,13 +639,19 @@ async function fetchPRTG(host,content,secret){
   if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
+
 async function connectAudit(){
-  const host=document.getElementById('hostInput').value.trim();
-  const secret=document.getElementById('secretInput').value.trim();
-  if(!host||!secret){alert('Captura el host y el passhash.');return;}
+  const inst=instances[activeIdx];
+  const host=document.getElementById('hostInput').value.trim()||(inst?.host||'');
+  const user=document.getElementById('userInput').value.trim()||(inst?.user||'auditor');
+  const secret=document.getElementById('secretInput').value.trim()||(inst?.secret||'');
+  if(!host||!secret){alert('La instancia activa no tiene host o passhash configurado.\nVe a Instancias y edita el slot correspondiente.');return;}
   try{
     const [sRaw,dRaw,uRaw,nRaw]=await Promise.all([
-      fetchPRTG(host,'sensors',secret),fetchPRTG(host,'devices',secret),fetchPRTG(host,'users',secret),fetchPRTG(host,'notifications',secret)
+      fetchPRTG(host,'sensors',user,secret),
+      fetchPRTG(host,'devices',user,secret),
+      fetchPRTG(host,'users',user,secret),
+      fetchPRTG(host,'notifications',user,secret)
     ]);
     const sensors=(sRaw.sensors||[]).map(s=>({
       name:s.name||'N/A',device:s.device||'N/A',group:s.group||'N/A',
@@ -434,16 +665,19 @@ async function connectAudit(){
       users:(uRaw.users||[]).map(u=>({name:u.name||'N/A',email:u.email||'',type:u.type||'',risk:/admin/i.test(u.name||'')?'Alto':/read.?only/i.test(u.type||'')?'Bajo':'Medio'})),
       notifications:(nRaw.notifications||[]).map(n=>({name:n.name||'N/A',active:String(n.active)==='1',trigger:'Ver en PRTG',finding:String(n.active)==='1'?'Correcta':'Inactiva — revisar'}))
     };
+    if(inst) inst.connected=true;
+    updateSidebarStatus('connected');
     render();
-    alert('Datos cargados correctamente.');
-  } catch(e){
+    alert('Datos cargados correctamente desde '+host);
+  }catch(e){
     console.error(e);
     alert('Error al conectar: '+e.message+'\n\nVerifica la URL, credenciales y que PRTG esté accesible desde esta red.\nSi ves errores de CORS, usa el script Python del repositorio.');
   }
 }
 
-/* ==================== EXPORT CSV ==================== */
+/* ══ EXPORT CSV ══ */
 function exportCsv(){
+  const instName=instances[activeIdx]?.name||'instancia';
   const rows=[['tipo','nombre','dispositivo','grupo','estado','valor','mensaje_hallazgo']];
   state.sensors.forEach(s=>rows.push(['sensor',s.name,s.device,s.group,s.status,s.lastvalue,s.message]));
   state.noLimits.forEach(s=>rows.push(['sin_umbral',s.name,s.device,'',s.limitmode,s.lastvalue,'Sin LimitMaxError configurado']));
@@ -452,17 +686,27 @@ function exportCsv(){
   buildChecklist().forEach(([label,pass])=>rows.push(['checklist',label,'','',pass?'cumple':'revisar','',pass?'OK':'Requiere atención']));
   const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='prtg-audit-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href);
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='prtg-audit-'+instName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
 }
 
-/* ==================== EVENTS ==================== */
+/* ══ RENDER GENERAL ══ */
+function render(){
+  renderKPIs();renderSensors();renderLimits();renderUsers();renderNotifications();renderChecklist();
+  if(window.lucide) lucide.createIcons();
+}
+
+/* ══ TEMA ══ */
 let currentTheme=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
 document.documentElement.setAttribute('data-theme',currentTheme);
 const themeBtn=document.getElementById('themeToggle');
 function updateThemeIcon(){themeBtn.innerHTML=currentTheme==='dark'?'<i data-lucide="sun"></i>':'<i data-lucide="moon"></i>';if(window.lucide)lucide.createIcons();}
 themeBtn.addEventListener('click',()=>{currentTheme=currentTheme==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',currentTheme);updateThemeIcon();});
-document.getElementById('loadDemoBtn').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));render();});
-document.getElementById('loadDemoBtn2').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));render();});
+
+/* ══ EVENTOS ══ */
+document.getElementById('loadDemoBtn').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));updateSidebarStatus('demo');render();});
+document.getElementById('loadDemoBtn2').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(DEMO));updateSidebarStatus('demo');render();});
 [document.getElementById('connectBtn'),document.getElementById('connectBtn2')].forEach(b=>b.addEventListener('click',connectAudit));
 document.getElementById('exportBtn').addEventListener('click',exportCsv);
 document.getElementById('sensorFilter').addEventListener('change',renderSensors);
@@ -471,7 +715,8 @@ document.querySelectorAll('.nav a').forEach(a=>{
   a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));a.classList.add('active');});
 });
 
-/* ==================== INIT ==================== */
+/* ══ INIT ══ */
+renderInstances();
 render();
 updateThemeIcon();
 </script>
