@@ -3,33 +3,39 @@
 scripts/prtg_audit.py
 =====================
 Entry point CLI para la auditoría PRTG.
-Orquesta los módulos de src/features/ y genera el reporte CSV.
 
-Estructura del proyecto (Híbrido Tipo + Feature):
-    src/
-      core/       — cliente API, autenticación, excepciones
-      features/   — módulos independientes por funcionalidad
-        devices/       inventario de dispositivos
-        sensors/       down, warning, sin umbrales, pausados
-        users/         usuarios y permisos
-        notifications/ alertas activas vs pausadas
-      shared/     — exportador CSV y logger reutilizables
+Mejoras v2:
+  - Carga automática de .env con python-dotenv
+  - Logging estructurado con niveles configurables
+  - --no-verify-ssl explícito (ya no hardcodeado)
+  - --format csv|json|both
+  - --dry-run para verificar conectividad sin generar reporte
+  - --log-file para guardar logs en archivo
+  - Multi-sitio lee variables de entorno automáticamente
 
-Uso:
-    python scripts/prtg_audit.py --host https://prtg.empresa.com --user admin --passhash 1234567890
-    python scripts/prtg_audit.py --host https://prtg.empresa.com --user admin --pass MiPass
-    python scripts/prtg_audit.py --multi-site --output /tmp/reportes
-
-Requerimientos:
-    pip install -r requirements.txt
+Uso rápido:
+    cp .env.example .env  # edita con tus credenciales
+    python scripts/prtg_audit.py                        # lee desde .env
+    python scripts/prtg_audit.py --host https://... --user admin --passhash XXXX
+    python scripts/prtg_audit.py --multi-site
+    python scripts/prtg_audit.py --dry-run
 """
 
 import sys
+import os
 import argparse
+import logging
 from pathlib import Path
 
-# Agregar raíz del proyecto al path para importar src/
+# Agregar raíz del proyecto al path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Cargar .env automáticamente si existe
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass  # python-dotenv opcional; parámetros CLI tienen prioridad
 
 from src.core.client import PRTGClient
 from src.core.exceptions import PRTGError
@@ -38,59 +44,92 @@ from src.features.sensors.audit import SensorAudit
 from src.features.users.audit import UserAudit
 from src.features.notifications.audit import NotificationAudit
 from src.shared.exporter import CSVExporter
-from src.shared.logger import AuditLogger
+from src.shared.logger import AuditLogger, setup_logging
 
 
-# ─────────────────────────────────────────────
-# CONFIGURACIÓN MULTI-SITIO
-# Agrega aquí tus instancias PRTG para --multi-site
-# ─────────────────────────────────────────────
-SITES = [
+def build_sites_from_env() -> list:
+    """Construye la lista de sitios desde variables de entorno."""
+    sites = []
+    # Sitio principal
+    host = os.getenv("PRTG_HOST")
+    user = os.getenv("PRTG_USER")
+    if host and user:
+        sites.append({
+            "name":     os.getenv("PRTG_SITE_NAME", "Principal"),
+            "host":     host,
+            "username": user,
+            "password": os.getenv("PRTG_PASSWORD"),
+            "passhash": os.getenv("PRTG_PASSHASH"),
+        })
+    # Sitio DR
+    host_dr = os.getenv("PRTG_HOST_DR")
+    user_dr = os.getenv("PRTG_USER_DR")
+    if host_dr and user_dr:
+        sites.append({
+            "name":     os.getenv("PRTG_SITE_NAME_DR", "DR"),
+            "host":     host_dr,
+            "username": user_dr,
+            "password": os.getenv("PRTG_PASSWORD_DR"),
+            "passhash": os.getenv("PRTG_PASSHASH_DR"),
+        })
+    return sites
+
+
+# ── Configuración multi-sitio manual (alternativa al .env) ───────────────────
+# Si prefieres no usar .env puedes definir los sitios aquí:
+SITES_MANUAL = [
     # {
-    #     "name":     "Sitio-Principal",
-    #     "host":     "https://prtg-site1.miempresa.com",
+    #     "name":     "Guadalajara",
+    #     "host":     "https://prtg-gdl.empresa.com",
     #     "username": "admin",
-    #     "password": None,
-    #     "passhash": "1234567890",   # recomendado sobre password
+    #     "passhash": "1234567890",
     # },
     # {
-    #     "name":     "Sitio-DR",
-    #     "host":     "https://prtg-site2.miempresa.com",
+    #     "name":     "CDMX-DR",
+    #     "host":     "https://prtg-cdmx.empresa.com",
     #     "username": "auditor",
-    #     "password": None,
     #     "passhash": "0987654321",
     # },
 ]
 
 
 def run_audit(host: str, username: str, password: str = None, passhash: str = None,
-              site_name: str = "sitio", output_dir: str = "reports") -> str:
+              site_name: str = "sitio", output_dir: str = "reports",
+              verify_ssl: bool = True, fmt: str = "csv",
+              dry_run: bool = False) -> str:
     """
     Ejecuta la auditoría completa para un sitio PRTG.
 
-    Args:
-        host:       URL base del servidor PRTG
-        username:   Usuario de PRTG
-        password:   Contraseña en texto plano (usar passhash es más seguro)
-        passhash:   Hash de contraseña desde Setup → My Account → Passhash
-        site_name:  Nombre descriptivo del sitio
-        output_dir: Directorio donde se guardará el reporte CSV
-
     Returns:
-        Ruta del archivo CSV generado
+        Ruta del archivo generado (vacío en dry_run)
     """
+    log = logging.getLogger(__name__)
     AuditLogger.header(site_name, host)
 
-    # ── 1. Cliente base ──────────────────────
-    client = PRTGClient(host=host, username=username, password=password, passhash=passhash)
+    client = PRTGClient(
+        host=host, username=username,
+        password=password, passhash=passhash,
+        verify_ssl=verify_ssl,
+    )
 
-    # ── 2. Ejecutar features ─────────────────
-    devices    = DeviceAudit(client).run()
-    sensors    = SensorAudit(client).run()
-    users      = UserAudit(client).run()
-    notifs     = NotificationAudit(client).run()
+    if dry_run:
+        # Solo verificar que la API responde
+        log.info("[dry-run] Verificando conectividad con %s...", host)
+        try:
+            data = client.get("/api/table.json", {
+                "content": "sensors", "columns": "objid", "count": 1, "output": "json"
+            })
+            count = len(data.get("sensors", []))
+            log.info("[dry-run] OK — API responde. Sensores visibles: %d", count)
+        except PRTGError as e:
+            log.error("[dry-run] FALLO: %s", e)
+        return ""
 
-    # ── 3. Resumen en consola ─────────────────
+    devices = DeviceAudit(client).run()
+    sensors = SensorAudit(client).run()
+    users   = UserAudit(client).run()
+    notifs  = NotificationAudit(client).run()
+
     AuditLogger.summary(site_name, {
         "devices":              len(devices),
         "sensors_down":         len(sensors["down"]),
@@ -101,7 +140,6 @@ def run_audit(host: str, username: str, password: str = None, passhash: str = No
         "notifications_paused": len(notifs["paused"]),
     })
 
-    # ── 4. Exportar CSV ───────────────────────
     exporter = CSVExporter(site_name=site_name, output_dir=output_dir)
     exporter.add_devices(devices)
     exporter.add_sensors_down(sensors["down"])
@@ -110,11 +148,13 @@ def run_audit(host: str, username: str, password: str = None, passhash: str = No
     exporter.add_sensors_paused(sensors["paused"])
     exporter.add_users(users)
     exporter.add_notifications_paused(notifs["paused"])
-    return exporter.export()
+    return exporter.export(fmt=fmt)
 
 
-def run_multi_site(sites: list, output_dir: str = "reports"):
-    """Audita múltiples instancias PRTG en secuencia."""
+def run_multi_site(sites: list, output_dir: str = "reports",
+                  verify_ssl: bool = True, fmt: str = "csv",
+                  dry_run: bool = False):
+    log = logging.getLogger(__name__)
     reports = []
     for site in sites:
         try:
@@ -125,56 +165,92 @@ def run_multi_site(sites: list, output_dir: str = "reports"):
                 passhash=site.get("passhash"),
                 site_name=site.get("name", site["host"]),
                 output_dir=output_dir,
+                verify_ssl=verify_ssl,
+                fmt=fmt,
+                dry_run=dry_run,
             )
-            reports.append(report)
+            if report:
+                reports.append(report)
         except PRTGError as e:
-            print(f"[ERROR] Sitio {site.get('name', site['host'])}: {e}")
+            log.error("Sitio %s: %s", site.get("name", site["host"]), e)
     AuditLogger.multi_site_done(output_dir, reports)
 
 
-# ──────────────────────────────────────────────
-# CLI ENTRY POINT
-# ──────────────────────────────────────────────
+# ── CLI ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="PRTG Audit Script — Auditoría de servidores PRTG para revisión interna"
+        description="PRTG Audit Script — Genera reportes de auditoría para servidores PRTG",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ejemplos:
+  python scripts/prtg_audit.py                                 # Lee desde .env
+  python scripts/prtg_audit.py --host https://prtg.co --user admin --passhash XXXX
+  python scripts/prtg_audit.py --format both --output ./reports
+  python scripts/prtg_audit.py --dry-run
+  python scripts/prtg_audit.py --multi-site --format json
+"""
     )
-    parser.add_argument("--host",       help="URL base del servidor PRTG (ej: https://prtg.empresa.com)")
-    parser.add_argument("--user",       help="Usuario de PRTG")
-    parser.add_argument("--pass",       dest="password", help="Contraseña de PRTG")
-    parser.add_argument("--passhash",   help="Passhash de PRTG (más seguro que --pass)")
-    parser.add_argument("--site-name",  default="sitio", help="Nombre descriptivo del sitio (default: sitio)")
-    parser.add_argument("--output",     default="reports", help="Directorio de salida para reportes (default: reports/)")
-    parser.add_argument("--multi-site", action="store_true", help="Usar configuración multi-sitio definida en SITES[]")
+
+    # Credenciales
+    parser.add_argument("--host",     help="URL base del servidor PRTG")
+    parser.add_argument("--user",     help="Usuario de PRTG")
+    parser.add_argument("--pass",     dest="password", help="Contraseña de PRTG")
+    parser.add_argument("--passhash", help="Passhash (más seguro que --pass)")
+    parser.add_argument("--site-name",default="sitio", help="Nombre del sitio (default: sitio)")
+
+    # Opciones de salida
+    parser.add_argument("--output",   default=os.getenv("PRTG_OUTPUT_DIR", "reports"),
+                        help="Directorio de salida (default: reports/)")
+    parser.add_argument("--format",   choices=["csv", "json", "both"], default="csv",
+                        help="Formato de exportación: csv | json | both (default: csv)")
+    parser.add_argument("--log-file", help="Archivo de log adicional")
+    parser.add_argument("--log-level",default=os.getenv("PRTG_LOG_LEVEL", "INFO"),
+                        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                        help="Nivel de logging (default: INFO)")
+
+    # Opciones de modo
+    parser.add_argument("--multi-site",  action="store_true",
+                        help="Auditar todos los sitios definidos en .env o SITES_MANUAL")
+    parser.add_argument("--dry-run",     action="store_true",
+                        help="Verificar conectividad sin generar reporte")
+    parser.add_argument("--no-verify-ssl", action="store_true",
+                        default=(os.getenv("PRTG_NO_VERIFY_SSL", "false").lower() == "true"),
+                        help="Desactivar verificación SSL (solo entornos con cert autofirmado)")
 
     args = parser.parse_args()
+    setup_logging(level=args.log_level, log_file=args.log_file)
+    verify_ssl = not args.no_verify_ssl
 
     try:
         if args.multi_site:
-            if not SITES:
-                print("[ERROR] No hay sitios en SITES[]. Edita scripts/prtg_audit.py y agrega tus instancias.")
+            sites = SITES_MANUAL or build_sites_from_env()
+            if not sites:
+                print("[ERROR] No hay sitios configurados. Define PRTG_HOST/PRTG_USER en .env "
+                      "o agrega entradas a SITES_MANUAL en el script.")
                 sys.exit(1)
-            run_multi_site(SITES, output_dir=args.output)
+            run_multi_site(sites, output_dir=args.output, verify_ssl=verify_ssl,
+                           fmt=args.format, dry_run=args.dry_run)
 
-        elif args.host and args.user:
-            if not args.password and not args.passhash:
-                print("[ERROR] Debes proporcionar --pass o --passhash.")
-                sys.exit(1)
-            run_audit(
-                host=args.host,
-                username=args.user,
-                password=args.password,
-                passhash=args.passhash,
-                site_name=args.site_name,
-                output_dir=args.output,
-            )
         else:
-            parser.print_help()
-            print("\nEjemplos de uso:")
-            print("  python scripts/prtg_audit.py --host https://prtg.empresa.com --user admin --passhash 1234567890")
-            print("  python scripts/prtg_audit.py --host https://prtg.empresa.com --user admin --pass MiPass")
-            print("  python scripts/prtg_audit.py --multi-site --output /tmp/reportes")
+            # Resolución de credenciales: CLI > .env
+            host     = args.host     or os.getenv("PRTG_HOST")
+            user     = args.user     or os.getenv("PRTG_USER")
+            passhash = args.passhash or os.getenv("PRTG_PASSHASH")
+            password = args.password or os.getenv("PRTG_PASSWORD")
+            site     = args.site_name if args.site_name != "sitio" else os.getenv("PRTG_SITE_NAME", "sitio")
+
+            if not host or not user:
+                parser.print_help()
+                print("\n[ERROR] Debes proporcionar --host y --user, o configurar .env")
+                sys.exit(1)
+            if not password and not passhash:
+                print("[ERROR] Debes proporcionar --pass o --passhash (o PRTG_PASSHASH en .env)")
+                sys.exit(1)
+
+            run_audit(host=host, username=user, password=password, passhash=passhash,
+                      site_name=site, output_dir=args.output, verify_ssl=verify_ssl,
+                      fmt=args.format, dry_run=args.dry_run)
 
     except PRTGError as e:
-        print(f"[ERROR] {e}")
+        logging.getLogger(__name__).error("%s", e)
         sys.exit(1)
