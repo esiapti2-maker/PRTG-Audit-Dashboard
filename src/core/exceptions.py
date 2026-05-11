@@ -1,7 +1,12 @@
 """
 src/core/exceptions.py
-======================
-Jerarquía de excepciones propias del proyecto.
+========================
+Jerarquía de excepciones del proyecto.
+
+PRTGError
+  ├── PRTGAuthError      — Credenciales inválidas o faltantes
+  ├── PRTGConnectionError — Error de red o HTTP
+  └── PRTGDataError      — Respuesta inesperada de la API
 """
 
 
@@ -10,12 +15,12 @@ class PRTGError(Exception):
 
 
 class PRTGAuthError(PRTGError):
-    """Credenciales inválidas o ausentes."""
+    """Credenciales inválidas, faltantes o URL malformada."""
 
 
 class PRTGConnectionError(PRTGError):
-    """No se pudo conectar al servidor PRTG."""
+    """Error de red, timeout o respuesta HTTP no exitosa."""
 
 
 class PRTGDataError(PRTGError):
-    """La API devolvió datos inesperados o incompletos."""
+    """La API respondió OK pero el contenido no tiene el formato esperado."""

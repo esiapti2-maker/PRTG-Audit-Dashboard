@@ -1,76 +1,68 @@
 """
 src/shared/logger.py
-=====================
-Logger reutilizable para el CLI de auditoría.
-
-Mejoras v2:
-  - Usa el módulo `logging` estándar en lugar de print() directo
-  - setup_logging() configura nivel y salida a archivo opcional
-  - AuditLogger mantiene la misma interfaz pública para compatibilidad
+======================
+Logging estructurado para el proceso de auditoría.
+Provee helpers visuales (header, summary, multi-site done)
+que se imprimen en consola al ejecutar el script.
 """
+from __future__ import annotations
 import logging
-from datetime import datetime
+import sys
 
 
-def setup_logging(level: str = "INFO", log_file: str = None):
+def setup_logging(level: str = "INFO", log_file: str | None = None) -> None:
     """
-    Configura el logger raíz del proyecto.
+    Configura el logger raíz con formato enriquecido.
 
     Args:
-        level:    Nivel de verbosidad: DEBUG | INFO | WARNING | ERROR
-        log_file: Ruta opcional a archivo de log (además de consola)
+        level:    DEBUG | INFO | WARNING | ERROR
+        log_file: Ruta opcional de archivo de log adicional
     """
-    numeric = getattr(logging, level.upper(), logging.INFO)
-    handlers = [logging.StreamHandler()]
+    fmt     = "%(asctime)s  %(levelname)-8s  %(name)s — %(message)s"
+    datefmt = "%Y-%m-%d %H:%M:%S"
+
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     if log_file:
         handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
     logging.basicConfig(
-        level=numeric,
-        format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+        level=getattr(logging, level.upper(), logging.INFO),
+        format=fmt,
+        datefmt=datefmt,
         handlers=handlers,
+        force=True,
     )
 
 
-log = logging.getLogger(__name__)
-
-
 class AuditLogger:
-    """Interfaz de alto nivel para mensajes de auditoría."""
+    """Métodos de utilidad para imprimir bloques visuales en consola."""
 
-    @staticmethod
-    def header(site_name: str, host: str):
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log.info("=" * 60)
-        log.info("  PRTG Audit  |  %s", site_name)
-        log.info("  Host:  %s", host)
-        log.info("  Fecha: %s", ts)
-        log.info("=" * 60)
+    _SEP = "─" * 60
 
-    @staticmethod
-    def summary(site_name: str, counts: dict):
-        labels = {
-            "devices":              "Dispositivos totales",
-            "sensors_down":         "Sensores DOWN",
-            "sensors_warning":      "Sensores WARNING",
-            "sensors_no_limits":    "Sensores sin umbrales",
-            "sensors_paused":       "Sensores pausados",
-            "users":                "Usuarios",
-            "notifications_paused": "Notificaciones pausadas",
-        }
-        log.info("  ── Resumen: %s ──", site_name)
-        for key, count in counts.items():
-            label = labels.get(key, key)
-            lvl   = logging.WARNING if (count > 0 and key not in ("devices", "users")) else logging.INFO
-            log.log(lvl, "    %-30s %6d%s", label, count,
-                    "  ⚠" if lvl == logging.WARNING else "")
+    @classmethod
+    def header(cls, site_name: str, host: str) -> None:
+        print()
+        print(cls._SEP)
+        print(f"  PRTG Audit — {site_name}")
+        print(f"  Host: {host}")
+        print(cls._SEP)
 
-    @staticmethod
-    def multi_site_done(output_dir: str, reports: list):
-        log.info("=" * 60)
-        log.info("  Multi-sitio finalizado. %d reporte(s) generado(s).", len(reports))
-        log.info("  Directorio: %s", output_dir)
+    @classmethod
+    def summary(cls, site_name: str, counts: dict) -> None:
+        print()
+        print(f"  ── Resumen: {site_name} ──")
+        for key, val in counts.items():
+            label = key.replace("_", " ").capitalize()
+            marker = " ⚠" if val > 0 and key != "devices" else ""
+            print(f"     {label:<28} {val:>5}{marker}")
+        print()
+
+    @classmethod
+    def multi_site_done(cls, output_dir: str, reports: list[str]) -> None:
+        print()
+        print(cls._SEP)
+        print(f"  Multi-sitio completado — {len(reports)} reporte(s) en '{output_dir}'")
         for r in reports:
-            log.info("    • %s", r)
-        log.info("=" * 60)
+            print(f"    • {r}")
+        print(cls._SEP)
+        print()

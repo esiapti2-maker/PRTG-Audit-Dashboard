@@ -1,17 +1,19 @@
 """
 src/shared/exporter.py
-=======================
-Exportador multi-formato: CSV y JSON.
-Recibe los resultados de todos los features y los escribe en disco,
-listo para revisión de auditoría interna o carga en el dashboard HTML.
+========================
+Exportador de resultados de auditoría.
 
-Mejoras v2:
-  - Soporte JSON con --format json  (compatible con el dashboard HTML)
-  - CSV con encoding UTF-8 BOM (compatible con Excel español)
-  - Logging estándar en lugar de print()
+Soporta:
+  - CSV  — un archivo con múltiples secciones separadas por encabezado
+  - JSON — un archivo estructurado por sección
+  - both — genera ambos formatos en la misma ejecución
+
+El nombre de archivo incluye sitio + timestamp para historial acumulado.
 """
+from __future__ import annotations
 import csv
 import json
+import os
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -20,114 +22,118 @@ log = logging.getLogger(__name__)
 
 
 class CSVExporter:
-    SECTION_HEADERS = {
-        "devices":              ["Sección", "ID", "Dispositivo", "Host", "Grupo", "Probe", "Estado", "Mensaje"],
-        "sensors_down":        ["Sección", "ID", "Sensor", "Dispositivo", "Grupo", "Probe", "Estado", "Último Valor", "Prioridad", "Mensaje"],
-        "sensors_warning":     ["Sección", "ID", "Sensor", "Dispositivo", "Grupo", "Probe", "Estado", "Último Valor", "Prioridad", "Mensaje"],
-        "sensors_no_limits":   ["Sección", "ID", "Sensor", "Dispositivo", "Grupo", "Probe", "Estado", "Último Valor", "Prioridad", "Mensaje"],
-        "sensors_paused":      ["Sección", "ID", "Sensor", "Dispositivo", "Grupo", "Probe", "Estado", "Último Valor", "Prioridad", "Mensaje"],
-        "users":               ["Sección", "ID", "Nombre", "Email", "Grupo", "Grupo Usuario"],
-        "notifications_paused":["Sección", "ID", "Nombre", "Activa", "Estado", "Último Trigger"],
-    }
+    """
+    Acumula hallazgos por sección y los exporta a CSV y/o JSON.
 
-    def __init__(self, site_name: str, output_dir: str = "reports"):
+    Uso:
+        exp = CSVExporter(site_name="Guadalajara", output_dir="reports")
+        exp.add_devices(devices)
+        exp.add_sensors_down(down_list)
+        exp.add_sensors_no_limits(no_limits_list)
+        exp.add_users(users)
+        exp.add_notifications_paused(paused_notifs)
+        path = exp.export(fmt="csv")   # "csv" | "json" | "both"
+    """
+
+    _SECTIONS = [
+        "devices",
+        "sensors_down",
+        "sensors_warning",
+        "sensors_no_limits",
+        "sensors_paused",
+        "users",
+        "notifications_paused",
+    ]
+
+    def __init__(self, site_name: str = "sitio", output_dir: str = "reports") -> None:
         self.site_name  = site_name
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._data: dict = {}
-        self._sections: list = []
+        self._data: dict[str, list] = {s: [] for s in self._SECTIONS}
+        self._ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    def add_devices(self, devices: list):
-        self._data["devices"] = devices
-        rows = [["INVENTARIO", d["id"], d["name"], d["host"],
-                 d["group"], d["probe"], d["status"], d["message"]] for d in devices]
-        self._sections.append(("devices", self.SECTION_HEADERS["devices"], rows))
+    # ── add methods ──────────────────────────────────────────────────────────
 
-    def add_sensors_down(self, sensors: list):
-        self._data["sensors_down"] = sensors
-        self._add_sensor_section("sensors_down", "SENSOR DOWN", sensors)
+    def add_devices(self,             rows: list[dict]) -> None: self._data["devices"]              = rows
+    def add_sensors_down(self,        rows: list[dict]) -> None: self._data["sensors_down"]         = rows
+    def add_sensors_warning(self,     rows: list[dict]) -> None: self._data["sensors_warning"]      = rows
+    def add_sensors_no_limits(self,   rows: list[dict]) -> None: self._data["sensors_no_limits"]    = rows
+    def add_sensors_paused(self,      rows: list[dict]) -> None: self._data["sensors_paused"]       = rows
+    def add_users(self,               rows: list[dict]) -> None: self._data["users"]                = rows
+    def add_notifications_paused(self,rows: list[dict]) -> None: self._data["notifications_paused"] = rows
 
-    def add_sensors_warning(self, sensors: list):
-        self._data["sensors_warning"] = sensors
-        self._add_sensor_section("sensors_warning", "SENSOR WARNING", sensors)
-
-    def add_sensors_no_limits(self, sensors: list):
-        self._data["sensors_no_limits"] = sensors
-        self._add_sensor_section("sensors_no_limits", "SIN UMBRALES", sensors)
-
-    def add_sensors_paused(self, sensors: list):
-        self._data["sensors_paused"] = sensors
-        self._add_sensor_section("sensors_paused", "SENSOR PAUSADO", sensors)
-
-    def add_users(self, users: list):
-        self._data["users"] = users
-        rows = [["USUARIO", u["id"], u["name"], u["email"],
-                 u["group"], u["user_group"]] for u in users]
-        self._sections.append(("users", self.SECTION_HEADERS["users"], rows))
-
-    def add_notifications_paused(self, notifs: list):
-        self._data["notifications_paused"] = notifs
-        rows = [["NOTIF PAUSADA", n["id"], n["name"], n["active"],
-                 n["status"], n["last_trigger"]] for n in notifs]
-        self._sections.append(("notifications_paused",
-                                self.SECTION_HEADERS["notifications_paused"], rows))
+    # ── export ───────────────────────────────────────────────────────────────
 
     def export(self, fmt: str = "csv") -> str:
         """
-        Exporta datos al formato indicado.
-        fmt: "csv" | "json" | "both"
-        Retorna la ruta del archivo principal generado.
+        Exporta los hallazgos al formato indicado.
+
+        Args:
+            fmt: "csv" | "json" | "both"
+
+        Returns:
+            Ruta del archivo CSV generado (o ruta CSV en modo both)
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base      = self.output_dir / f"prtg_audit_{self.site_name}_{timestamp}"
-        result    = ""
+        safe_name = self.site_name.replace(" ", "_").lower()
+        csv_path  = self.output_dir / f"prtg_audit_{safe_name}_{self._ts}.csv"
+        json_path = self.output_dir / f"prtg_audit_{safe_name}_{self._ts}.json"
 
         if fmt in ("csv", "both"):
-            result = self._write_csv(str(base) + ".csv")
+            self._write_csv(csv_path)
         if fmt in ("json", "both"):
-            json_path = self._write_json(str(base) + ".json")
-            if fmt == "json":
-                result = json_path
+            self._write_json(json_path)
 
-        return result
+        if fmt == "json":
+            return str(json_path)
+        return str(csv_path)
 
-    def _write_csv(self, path: str) -> str:
+    # ── private writers ──────────────────────────────────────────────────────
+
+    def _write_csv(self, path: Path) -> None:
+        """Escribe todas las secciones en un CSV con encabezados de sección."""
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            for _key, headers, rows in self._sections:
+
+            # Encabezado global
+            writer.writerow([f"PRTG Audit Report — {self.site_name}"])
+            writer.writerow([f"Generado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"])
+            writer.writerow([])
+
+            for section in self._SECTIONS:
+                rows = self._data[section]
+                label = section.replace("_", " ").title()
+                writer.writerow([f"=== {label} ({len(rows)} registros) ==="])
+
+                if not rows:
+                    writer.writerow(["(sin hallazgos)"])
+                    writer.writerow([])
+                    continue
+
+                headers = list(rows[0].keys())
+                # Excluir campos internos del CSV
+                headers = [h for h in headers if h not in ("status_raw", "is_paused", "priority_raw")]
                 writer.writerow(headers)
-                writer.writerows(rows)
+
+                for row in rows:
+                    writer.writerow([row.get(h, "") for h in headers])
+
                 writer.writerow([])
-        log.info("[exporter] CSV guardado: %s", path)
-        return path
 
-    def _write_json(self, path: str) -> str:
-        """
-        Genera JSON estructurado compatible con el dashboard HTML.
-        Formato:
-        {
-          "meta": { "site": "...", "generated_at": "..." },
-          "summary": { "devices": N, "sensors_down": N, ... },
-          "devices": [...],
-          "sensors_down": [...],
-          ...
-        }
-        """
-        output = {
-            "meta": {
-                "site":         self.site_name,
-                "generated_at": datetime.now().isoformat(),
+        log.info("CSV exportado: %s", path)
+        print(f"  [exporter] CSV → {path}")
+
+    def _write_json(self, path: Path) -> None:
+        """Escribe todas las secciones como JSON estructurado."""
+        payload = {
+            "site":      self.site_name,
+            "generated": datetime.now().isoformat(),
+            "summary": {
+                s: len(self._data[s]) for s in self._SECTIONS
             },
-            "summary": {k: len(v) for k, v in self._data.items()},
+            "data": self._data,
         }
-        output.update(self._data)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(output, f, ensure_ascii=False, indent=2)
-        log.info("[exporter] JSON guardado: %s", path)
-        return path
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    def _add_sensor_section(self, key: str, label: str, sensors: list):
-        rows = [[label, s["id"], s["name"], s["device"], s["group"],
-                 s["probe"], s["status"], s["lastvalue"], s["priority"], s["message"]]
-                for s in sensors]
-        self._sections.append((key, self.SECTION_HEADERS[key], rows))
+        log.info("JSON exportado: %s", path)
+        print(f"  [exporter] JSON → {path}")

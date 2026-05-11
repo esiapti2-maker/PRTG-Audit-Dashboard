@@ -1,144 +1,146 @@
 """
-Motor de auditoría PRTG.
-Cada método devuelve una lista de hallazgos (dicts) listos para exportar.
+src/core/audit_engine.py
+==========================
+Motor de auditoría de alto nivel.
+
+Orquesta la ejecución de todos los módulos de auditoría y
+calcula el AuditScore (0–100) que mide la salud del PRTG.
+
+Fórmula del AuditScore:
+  - Penalización por sensores Down         (peso 3)
+  - Penalización por sensores sin umbrales (peso 2)
+  - Penalización por notificaciones paused (peso 2)
+  - Penalización por usuarios CRÍTICO      (peso 1)
+  - Base 100 — suma de penalizaciones (mínimo 0)
+
+Uso:
+    engine = AuditEngine(client)
+    result = engine.run()
+    print(result.score)   # 0–100
+    print(result.issues)  # lista de strings con hallazgos
 """
 from __future__ import annotations
-from typing import List, Dict, Any
-from .prtg_client import PRTGClient
+from dataclasses import dataclass, field
+
+from src.core.client import PRTGClient
+from src.features.devices.audit       import DeviceAudit
+from src.features.sensors.audit       import SensorAudit
+from src.features.users.audit         import UserAudit
+from src.features.notifications.audit import NotificationAudit
+
+
+@dataclass
+class AuditResult:
+    site_name:     str
+    devices:       list = field(default_factory=list)
+    sensors_down:  list = field(default_factory=list)
+    sensors_warn:  list = field(default_factory=list)
+    no_limits:     list = field(default_factory=list)
+    paused:        list = field(default_factory=list)
+    users:         list = field(default_factory=list)
+    notifs_active: list = field(default_factory=list)
+    notifs_paused: list = field(default_factory=list)
+    score:         int  = 100
+    issues:        list = field(default_factory=list)
+
+    @property
+    def summary(self) -> dict:
+        return {
+            "score":                self.score,
+            "devices":             len(self.devices),
+            "sensors_down":        len(self.sensors_down),
+            "sensors_warning":     len(self.sensors_warn),
+            "sensors_no_limits":   len(self.no_limits),
+            "sensors_paused":      len(self.paused),
+            "users":               len(self.users),
+            "users_critical":      sum(1 for u in self.users if u.get("risk_level") == "CRÍTICO"),
+            "notifications_active":len(self.notifs_active),
+            "notifications_paused":len(self.notifs_paused),
+        }
 
 
 class AuditEngine:
-    """Orquesta los 6 módulos de auditoría."""
+    """
+    Ejecuta todos los módulos de auditoría y calcula el AuditScore.
 
-    def __init__(self, client: PRTGClient):
+    Args:
+        client: Instancia autenticada de PRTGClient
+    """
+
+    def __init__(self, client: PRTGClient) -> None:
         self.client = client
 
-    # ------------------------------------------------------------------
-    # 1. Inventario general
-    # ------------------------------------------------------------------
-    def audit_inventory(self) -> Dict[str, Any]:
-        sensors = self.client.get_sensors()["sensors"]
-        devices = self.client.get_devices()["devices"]
-        return {
-            "total_sensors": len(sensors),
-            "total_devices": len(devices),
-            "by_status": self._count_by(sensors, "status"),
-        }
+    def run(self, site_name: str = "sitio") -> AuditResult:
+        result = AuditResult(site_name=site_name)
 
-    # ------------------------------------------------------------------
-    # 2. Sensores críticos (Down / Warning)
-    # ------------------------------------------------------------------
-    def audit_critical_sensors(self) -> List[Dict]:
-        sensors = self.client.get_sensors()["sensors"]
-        findings = []
-        for s in sensors:
-            status = s.get("status", "").lower()
-            if "down" in status or "warning" in status:
-                findings.append({
-                    "category": "critical_sensor",
-                    "objid": s.get("objid"),
-                    "sensor": s.get("sensor"),
-                    "device": s.get("device"),
-                    "group": s.get("group"),
-                    "status": s.get("status"),
-                    "message": s.get("message"),
-                })
-        return findings
+        # Ejecutar módulos
+        result.devices = DeviceAudit(self.client).run()
 
-    # ------------------------------------------------------------------
-    # 3. Sensores sin umbrales definidos
-    # ------------------------------------------------------------------
-    def audit_no_thresholds(self) -> List[Dict]:
-        """Detecta sensores cuyos canales no tienen límites configurados."""
-        sensors = self.client.get_sensors()["sensors"]
-        findings = []
-        for s in sensors[:500]:  # máx 500 para no sobrecargar la API
-            try:
-                channels = self.client.get_channels(s["objid"]).get("channels", [])
-                has_limit = any(
-                    ch.get("limitmaxerror") or ch.get("limitminerror")
-                    for ch in channels
-                )
-                if not has_limit:
-                    findings.append({
-                        "category": "no_threshold",
-                        "objid": s.get("objid"),
-                        "sensor": s.get("sensor"),
-                        "device": s.get("device"),
-                        "group": s.get("group"),
-                        "channels_checked": len(channels),
-                    })
-            except Exception:
-                pass
-        return findings
+        sensors = SensorAudit(self.client).run()
+        result.sensors_down = sensors["down"]
+        result.sensors_warn = sensors["warning"]
+        result.no_limits    = sensors["no_limits"]
+        result.paused       = sensors["paused"]
 
-    # ------------------------------------------------------------------
-    # 4. Sensores pausados
-    # ------------------------------------------------------------------
-    def audit_paused_sensors(self) -> List[Dict]:
-        sensors = self.client.get_sensors()["sensors"]
-        return [
-            {
-                "category": "paused_sensor",
-                "objid": s.get("objid"),
-                "sensor": s.get("sensor"),
-                "device": s.get("device"),
-                "group": s.get("group"),
-                "message": s.get("message"),
-            }
-            for s in sensors
-            if "pause" in s.get("status", "").lower()
-        ]
+        result.users = UserAudit(self.client).run()
 
-    # ------------------------------------------------------------------
-    # 5. Usuarios y permisos
-    # ------------------------------------------------------------------
-    def audit_users(self) -> List[Dict]:
-        users = self.client.get_users().get("accounts", [])
-        findings = []
-        for u in users:
-            groups = u.get("usergroup", "").lower()
-            risk = "high" if "prtg system administrator" in groups else (
-                "medium" if "admin" in groups else "low"
+        notifs = NotificationAudit(self.client).run()
+        result.notifs_active = notifs["active"]
+        result.notifs_paused = notifs["paused"]
+
+        # Calcular score
+        result.score, result.issues = self._score(result)
+        return result
+
+    # ── scoring ───────────────────────────────────────────────────────────────
+
+    def _score(self, r: AuditResult) -> tuple[int, list[str]]:
+        total_sensors = max(
+            len(r.sensors_down) + len(r.sensors_warn) + len(r.no_limits) + len(r.paused), 1
+        )
+        issues: list[str] = []
+        penalty = 0
+
+        # Sensores Down — penalización fuerte
+        if r.sensors_down:
+            pct = len(r.sensors_down) / total_sensors * 100
+            p   = min(int(pct * 3), 40)   # máximo 40 puntos
+            penalty += p
+            issues.append(
+                f"{len(r.sensors_down)} sensor(es) Down "
+                f"({pct:.1f}% del total) — penalización {p} pts"
             )
-            findings.append({
-                "category": "user_review",
-                "objid": u.get("objid"),
-                "name": u.get("name"),
-                "email": u.get("email"),
-                "groups": u.get("usergroup"),
-                "risk_level": risk,
-            })
-        return findings
 
-    # ------------------------------------------------------------------
-    # 6. Notificaciones
-    # ------------------------------------------------------------------
-    def audit_notifications(self) -> List[Dict]:
-        notifs = self.client.get_notifications().get("notifications", [])
-        findings = []
-        for n in notifs:
-            issue = None
-            if not n.get("active"):
-                issue = "inactive"
-            elif n.get("postpone"):
-                issue = "postponed"
-            if issue:
-                findings.append({
-                    "category": "notification_issue",
-                    "objid": n.get("objid"),
-                    "name": n.get("name"),
-                    "issue": issue,
-                })
-        return findings
+        # Sin umbrales — penalización moderada
+        if r.no_limits:
+            pct = len(r.no_limits) / total_sensors * 100
+            p   = min(int(pct * 2), 30)
+            penalty += p
+            issues.append(
+                f"{len(r.no_limits)} sensor(es) sin umbrales "
+                f"({pct:.1f}%) — penalización {p} pts"
+            )
 
-    # ------------------------------------------------------------------
-    # Helper
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _count_by(items: List[Dict], field: str) -> Dict[str, int]:
-        counts: Dict[str, int] = {}
-        for item in items:
-            key = item.get(field, "unknown")
-            counts[key] = counts.get(key, 0) + 1
-        return counts
+        # Notificaciones pausadas
+        if r.notifs_paused:
+            p = min(len(r.notifs_paused) * 3, 15)
+            penalty += p
+            issues.append(
+                f"{len(r.notifs_paused)} notificación(es) pausada(s) "
+                f"— penalización {p} pts"
+            )
+
+        # Usuarios con privilegios críticos sin control
+        crit_users = [u for u in r.users if u.get("risk_level") == "CRÍTICO"]
+        if crit_users:
+            p = min(len(crit_users) * 2, 10)
+            penalty += p
+            issues.append(
+                f"{len(crit_users)} usuario(s) con privilegios críticos "
+                f"— penalización {p} pts"
+            )
+
+        score = max(100 - penalty, 0)
+        if not issues:
+            issues.append("Sin hallazgos críticos detectados ✓")
+        return score, issues
