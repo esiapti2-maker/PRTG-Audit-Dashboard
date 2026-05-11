@@ -1,560 +1,633 @@
 # Manual de Usuario — PRTG Audit Dashboard
 
-**Versión:** 1.0  
-**Fecha:** Mayo 2026  
-**Repositorio:** [esiapti2-maker/PRTG-Audit-Dashboard](https://github.com/esiapti2-maker/PRTG-Audit-Dashboard)
+> **Versión:** 1.0.0 · **Última actualización:** Mayo 2026  
+> Herramienta de auditoría técnica para instancias de PRTG Network Monitor
 
 ---
 
-## Tabla de Contenidos
+## Tabla de contenido
 
-1. [Descripción general](#1-descripción-general)
-2. [Arquitectura del proyecto](#2-arquitectura-del-proyecto)
-3. [Componente 1 — Dashboard Web](#3-componente-1--dashboard-web-prtg-audit-dashboardhtml)
-   - 3.1 [Requisitos para abrirlo](#31-requisitos-para-abrirlo)
-   - 3.2 [Pantalla de configuración inicial](#32-pantalla-de-configuración-inicial)
-   - 3.3 [Dónde se guarda la configuración](#33-dónde-se-guarda-la-configuración)
-   - 3.4 [Secciones del dashboard](#34-secciones-del-dashboard)
-   - 3.5 [Modo Demo](#35-modo-demo)
-   - 3.6 [Exportar CSV](#36-exportar-csv)
-   - 3.7 [Problema de CORS y cuándo usarlo](#37-problema-de-cors-y-cuándo-usarlo)
-4. [Componente 2 — Script Python](#4-componente-2--script-python-scriptsprtg_auditpy)
-   - 4.1 [Instalación de dependencias](#41-instalación-de-dependencias)
-   - 4.2 [Configuración via .env](#42-configuración-via-env)
-   - 4.3 [Uso desde CLI](#43-uso-desde-cli)
-   - 4.4 [Auditoría multi-sitio](#44-auditoría-multi-sitio)
-   - 4.5 [Automatización con cron](#45-automatización-con-cron)
-5. [Módulos de auditoría](#5-módulos-de-auditoría)
-6. [Checklist automático de salud](#6-checklist-automático-de-salud)
+1. [Arquitectura del aplicativo](#1-arquitectura-del-aplicativo)
+2. [Componente 1 — Dashboard Web](#2-componente-1--dashboard-web)
+   - [Instalación y apertura](#21-instalación-y-apertura)
+   - [Formulario de conexión](#22-formulario-de-conexión)
+   - [Flujo de auditoría](#23-flujo-de-auditoría)
+   - [Secciones del dashboard](#24-secciones-del-dashboard)
+   - [Exportar el reporte CSV](#25-exportar-el-reporte-csv)
+   - [Modo Demo](#26-modo-demo)
+3. [Componente 2 — Script Python CLI](#3-componente-2--script-python-cli)
+   - [Instalación](#31-instalación)
+   - [Uso básico](#32-uso-básico)
+   - [Parámetros disponibles](#33-parámetros-disponibles)
+   - [Auditoría multi-sitio](#34-auditoría-multi-sitio)
+   - [Automatización con cron](#35-automatización-con-cron)
+4. [Dónde se guarda la información](#4-dónde-se-guarda-la-información)
+5. [Módulos de auditoría explicados](#5-módulos-de-auditoría-explicados)
+   - [Inventario general](#51-inventario-general)
+   - [Sensores Down y Warning](#52-sensores-down-y-warning)
+   - [Sensores sin umbrales](#53-sensores-sin-umbrales)
+   - [Sensores pausados](#54-sensores-pausados)
+   - [Usuarios y privilegios](#55-usuarios-y-privilegios)
+   - [Notificaciones](#56-notificaciones)
+6. [Checklist automático y scoring](#6-checklist-automático-y-scoring)
 7. [Lectura del reporte CSV](#7-lectura-del-reporte-csv)
-8. [Obtener el Passhash de PRTG](#8-obtener-el-passhash-de-prtg)
-9. [Resolución de problemas](#9-resolución-de-problemas)
+8. [Resolución de problemas](#8-resolución-de-problemas)
+9. [Seguridad y buenas prácticas](#9-seguridad-y-buenas-prácticas)
 10. [Glosario técnico](#10-glosario-técnico)
 
 ---
 
-## 1. Descripción general
+## 1. Arquitectura del aplicativo
 
-PRTG Audit Dashboard es una herramienta de auditoría técnica para instancias de **PRTG Network Monitor**. Permite identificar brechas de configuración, sensores sin cobertura real, cuentas con privilegios excesivos y notificaciones inoperantes.
+El PRTG Audit Dashboard se compone de **dos herramientas independientes** que se complementan:
 
-El aplicativo tiene **dos componentes independientes** que se complementan:
+```
+┌─────────────────────────────────────────────────────────┐
+│                 PRTG Audit Dashboard                    │
+├────────────────────────┬────────────────────────────────┤
+│  Dashboard Web         │  Script Python CLI             │
+│  (HTML estático)       │  (prtg_audit.py)               │
+├────────────────────────┼────────────────────────────────┤
+│ • Corre en el browser  │ • Corre en terminal/servidor   │
+│ • Visual e interactivo │ • Automatizable con cron       │
+│ • Sin instalación      │ • Sin restricciones CORS       │
+│ • Datos en RAM (sesión)│ • Guarda CSV con timestamp     │
+│ • Exporta CSV manual   │ • Multi-sitio en un solo run   │
+└────────────────────────┴────────────────────────────────┘
+              │                        │
+              └──────────┬─────────────┘
+                         ▼
+              API REST de PRTG (/api/)
+```
 
-| Componente | Tipo | Cuándo usarlo |
-|---|---|---|
-| `prtg-audit-dashboard.html` | Dashboard web estático | Revisión visual rápida, presentaciones, exploración con Demo |
-| `scripts/prtg_audit.py` | Script Python CLI | Automatización, multi-sitio, entornos con restricción CORS |
+**¿Cuándo usar cuál?**
 
-Ambos consumen la misma **API JSON de PRTG** (disponible en cualquier instalación estándar, sin plugins adicionales).
+| Situación | Herramienta recomendada |
+|---|---|
+| Revisión puntual, presentación en reunión | Dashboard Web |
+| PRTG accesible desde el browser (sin CORS) | Dashboard Web |
+| Programar auditorías automáticas | Script Python |
+| Múltiples instancias PRTG (multi-sitio) | Script Python |
+| PRTG en red interna sin acceso directo del browser | Script Python desde servidor |
+| Historial acumulado de reportes | Script Python (CSV por fecha) |
 
 ---
 
-## 2. Arquitectura del proyecto
+## 2. Componente 1 — Dashboard Web
 
+### 2.1 Instalación y apertura
+
+No requiere instalación. Es un archivo HTML autocontenido.
+
+```bash
+# Opción A — Descarga directa
+curl -O https://raw.githubusercontent.com/esiapti2-maker/PRTG-Audit-Dashboard/main/prtg-audit-dashboard.html
+
+# Opción B — Clonar el repo completo
+git clone https://github.com/esiapti2-maker/PRTG-Audit-Dashboard.git
 ```
-PRTG-Audit-Dashboard/
-├── prtg-audit-dashboard.html   ← Dashboard web (todo en un archivo)
-├── scripts/
-│   └── prtg_audit.py           ← Script de auditoría Python
-├── docs/
-│   └── MANUAL.md               ← Este archivo
-├── requirements.txt            ← Dependencias Python
-├── .env.example                ← Plantilla de variables de entorno
-├── .gitignore                  ← Ignora CSVs, .env y __pycache__
-└── README.md                   ← Inicio rápido
-```
 
-> **Nota de almacenamiento:** El proyecto no usa base de datos ni archivo de configuración persistente. Los reportes generados (CSV) viven únicamente en tu máquina local y no se sincronizan al repositorio (están en `.gitignore`).
+Luego abre `prtg-audit-dashboard.html` con doble clic en cualquier browser moderno (Chrome, Firefox, Edge). No necesita servidor web.
 
----
+### 2.2 Formulario de conexión
 
-## 3. Componente 1 — Dashboard Web (`prtg-audit-dashboard.html`)
-
-### 3.1 Requisitos para abrirlo
-
-- Cualquier navegador moderno (Chrome 90+, Firefox 88+, Edge 90+)
-- Acceso de red al servidor PRTG (mismo segmento o VPN activa)
-- Credenciales de PRTG: usuario + **passhash** (ver [sección 8](#8-obtener-el-passhash-de-prtg))
-
-No requiere instalación, servidor web local ni dependencias externas. Simplemente abre el archivo `.html` con doble clic.
-
-### 3.2 Pantalla de configuración inicial
-
-Al abrir el dashboard, se muestra un formulario de conexión con los siguientes campos:
+Al abrir el dashboard verás el panel de configuración con tres campos:
 
 | Campo | Descripción | Ejemplo |
 |---|---|---|
-| **URL del servidor PRTG** | Dirección completa con protocolo | `https://prtg.empresa.com` o `http://192.168.1.100:8080` |
-| **Usuario** | Nombre de usuario PRTG | `auditor` |
-| **Passhash** | Hash seguro equivalente a la contraseña | `123456789` (ver sección 8) |
-| **Nombre del sitio** | Etiqueta para identificar la instancia | `Guadalajara`, `CDMX-DC` |
+| **URL de PRTG** | Dirección completa con protocolo | `https://prtg.empresa.com` |
+| **Usuario** | Cuenta PRTG (recomendado: solo lectura) | `auditoria` |
+| **Passhash** | Token de autenticación (no la contraseña) | `1234567890ABCDEF` |
 
-Después de ingresar los datos y presionar **"Ejecutar Auditoría"**, el dashboard realiza 4 llamadas paralelas a la API de PRTG y muestra los resultados en segundos.
+> **¿Cómo obtener el Passhash?**  
+> Dentro de PRTG: clic en tu nombre de usuario (esquina superior derecha) → **My Account** → sección **API / Passhash** → copiar el valor del campo *Passhash*.
+>
+> El passhash es más seguro que la contraseña porque es un token de solo lectura para la API y no expone tu contraseña real.
 
-### 3.3 Dónde se guarda la configuración
+### 2.3 Flujo de auditoría
 
-**La configuración NO se guarda de forma permanente.** Al ingresar los datos en el formulario, estos se almacenan en variables JavaScript en memoria RAM del navegador. Esto significa:
+```
+[Ingresar credenciales] → [Clic "Ejecutar Auditoría"]
+         │
+         ▼
+[4 llamadas paralelas a la API de PRTG]
+   • /api/table.json?content=devices    → Inventario
+   • /api/table.json?content=sensors    → Sensores
+   • /api/table.json?content=accounts   → Usuarios
+   • /api/table.json?content=notifications → Notificaciones
+         │
+         ▼
+[Procesamiento en el browser]
+   • Clasificación de estados
+   • Detección de anomalías
+   • Cálculo de score
+         │
+         ▼
+[Renderizado de resultados en pantalla]
+         │
+         ▼
+[Exportar CSV] ← opcional
+```
 
-- ✅ Los datos son seguros — nunca salen de tu máquina hacia un servidor externo
-- ✅ No hay archivo de configuración que pueda filtrarse
-- ⚠️ Al recargar o cerrar la pestaña, debes ingresar los datos nuevamente
-- ⚠️ No existe historial de conexiones previas en el browser
+El proceso completo tarda entre **3 y 15 segundos** dependiendo del tamaño de tu instalación PRTG.
 
-**¿Qué sí persiste?** Los reportes exportados en CSV. Cada vez que presionas "Exportar CSV", se descarga un archivo con timestamp (`prtg_audit_Guadalajara_20260511_141500.csv`) que queda en tu carpeta de Descargas de forma permanente.
+### 2.4 Secciones del dashboard
 
-### 3.4 Secciones del dashboard
+#### Panel de KPIs (parte superior)
 
-#### KPIs principales (fila superior)
+Muestra 4 métricas principales al instante:
 
-Cuatro tarjetas con métricas inmediatas:
+- **Total Dispositivos** — conteo completo de hosts monitoreados
+- **Sensores OK** — sensores en estado verde (número y porcentaje)
+- **Sensores Down** — sensores en estado rojo (alerta crítica)
+- **Sin Umbrales** — sensores activos pero sin límites configurados (riesgo silencioso)
+- **Score de Auditoría** — puntaje de 0 a 100% calculado con 8 criterios
 
-- **Dispositivos totales** — cantidad de hosts/equipos monitoreados
-- **Sensores OK** — sensores en estado verde
-- **Sensores Down** — sensores caídos o en error (en rojo)
-- **Sin umbrales** — sensores activos que no tienen límites de alerta configurados (crítico)
+#### Tabla de Sensores
 
-#### Score de salud
+Lista completa y filtrable con:
+- Nombre del sensor y dispositivo padre
+- Estado actual (Down, Warning, OK, Paused)
+- Última lectura de valor
+- Indicador visual de umbral configurado (✓ / ✗)
 
-Un indicador de 0 a 100% que evalúa el estado general de la configuración PRTG. El cálculo considera la proporción de sensores con umbrales, estado de notificaciones activas y nivel de privilegios de usuarios.
+Usa el campo de **búsqueda** para filtrar por nombre, y el **selector de estado** para ver solo Down, solo Warning, etc.
 
-#### Tabla de sensores
+#### Sección de Usuarios
 
-Lista completa de todos los sensores con:
-- Nombre del sensor y dispositivo al que pertenece
-- Estado actual (OK / Warning / Down / Paused)
-- Indicador visual de si tiene umbrales configurados
-- Filtro en tiempo real por estado y búsqueda por texto
+Clasifica todas las cuentas PRTG en niveles de riesgo:
+- 🔴 **Alto** — administradores o cuentas con acceso total
+- 🟡 **Medio** — acceso a grupos específicos con permisos de escritura
+- 🟢 **Bajo** — cuentas de solo lectura o monitoreo
 
-#### Usuarios y privilegios
+#### Sección de Notificaciones
 
-Clasificación automática de cuentas:
+Revisa todas las plantillas de alerta configuradas:
+- Plantillas **activas** (al menos un sensor la usa)
+- Plantillas **inactivas** (configuradas pero sin asignar)
+- Plantillas **sin disparador** (asignadas pero sin condición de activación)
 
-| Nivel de riesgo | Criterio |
-|---|---|
-| 🔴 Alto | Cuenta con rol de administrador sin restricciones |
-| 🟡 Medio | Cuenta con acceso de escritura a grupos sensibles |
-| 🟢 Bajo | Cuenta de solo lectura o acceso limitado |
+#### Checklist de Auditoría
 
-#### Notificaciones
+Ocho criterios con resultado pass ✅ / fail ❌ y recomendaciones por cada punto fallado.
 
-Revisión de plantillas de alerta configuradas en PRTG:
-- Notificaciones activas vs. inactivas
-- Notificaciones sin ningún disparador asignado (nunca se ejecutarán)
-- Canal de entrega: email, SMS, webhook, etc.
+### 2.5 Exportar el reporte CSV
 
-#### Checklist de auditoría
+El botón **"Exportar CSV"** descarga un archivo con nombre automático:
+```
+prtg_audit_YYYYMMDD_HHMMSS.csv
+```
 
-Ocho puntos de evaluación con resultado pass/fail automático (ver [sección 6](#6-checklist-automático-de-salud)).
-
-### 3.5 Modo Demo
-
-El botón **"Cargar Demo"** en la pantalla inicial carga un conjunto de datos de ejemplo predefinido sin necesidad de conexión a PRTG. Ideal para:
-
-- Familiarizarse con la interfaz antes de una auditoría real
-- Mostrar el funcionamiento a un equipo o cliente
-- Desarrollar y probar sin acceso a producción
-
-El modo Demo genera automáticamente ~50 sensores ficticios con distintos estados, 8 usuarios con distintos niveles de privilegio y 5 notificaciones, de las cuales 2 están inactivas y 1 sin disparador.
-
-### 3.6 Exportar CSV
-
-El botón **"Exportar CSV"** genera un archivo descargable con:
-
-- Resumen ejecutivo (fecha, sitio, score, totales)
-- Lista completa de sensores con su estado y configuración de umbrales
-- Lista de usuarios con clasificación de riesgo
+El archivo incluye:
+- Resumen ejecutivo (KPIs)
+- Lista completa de sensores con todos sus campos
+- Tabla de usuarios con clasificación de riesgo
 - Estado de notificaciones
-- Resultado del checklist de 8 puntos
+- Resultados del checklist con recomendaciones
 
-El nombre del archivo sigue el formato: `prtg_audit_{sitio}_{YYYYMMDD}_{HHMMSS}.csv`
+> **Importante:** Este es el único mecanismo de persistencia del Dashboard Web. Los datos **no se guardan automáticamente**. Si cierras el browser sin exportar, los resultados se pierden.
 
-> **Recomendación:** Exportar el CSV al finalizar cada sesión, ya que al cerrar el browser los datos se pierden.
+### 2.6 Modo Demo
 
-### 3.7 Problema de CORS y cuándo usarlo
-
-CORS (Cross-Origin Resource Sharing) es una política de seguridad del navegador. Cuando el archivo HTML intenta llamar a la API de PRTG desde un origen diferente (el sistema de archivos local o un servidor web distinto), el navegador puede bloquear la petición.
-
-**Síntomas de error CORS:**
-- La auditoría inicia pero no carga datos
-- Aparece un error en la consola del navegador: `Access-Control-Allow-Origin`
-- PRTG muestra el acceso en sus logs pero el browser rechaza la respuesta
-
-**Soluciones:**
-
-1. **Usar el script Python** — no tiene restricciones CORS, es la solución definitiva
-2. **Extensión CORS para Chrome** (solo para pruebas, no producción): [CORS Unblock](https://chrome.google.com/webstore/detail/cors-unblock)
-3. **Configurar headers en PRTG**: en algunos casos PRTG puede configurarse para emitir headers `Access-Control-Allow-Origin: *`
+El botón **"Cargar Demo"** carga datos de ejemplo sin necesitar conexión a PRTG. Útil para:
+- Presentar el aplicativo a stakeholders antes de tener acceso al PRTG productivo
+- Capacitar al equipo en la lectura de resultados
+- Probar el aplicativo en redes sin acceso al servidor PRTG
 
 ---
 
-## 4. Componente 2 — Script Python (`scripts/prtg_audit.py`)
+## 3. Componente 2 — Script Python CLI
 
-### 4.1 Instalación de dependencias
+### 3.1 Instalación
+
+**Requisitos:** Python 3.8 o superior
 
 ```bash
-# Clonar el repositorio
+# Clonar el repo
 git clone https://github.com/esiapti2-maker/PRTG-Audit-Dashboard.git
 cd PRTG-Audit-Dashboard
 
-# Crear entorno virtual (recomendado)
-python3 -m venv venv
-source venv/bin/activate        # Linux/macOS
-venv\Scripts\activate           # Windows
-
-# Instalar dependencias
+# Instalar dependencias (solo 'requests')
 pip install -r requirements.txt
+
+# Verificar instalación
+python scripts/prtg_audit.py --help
 ```
 
-Única dependencia externa: `requests >= 2.31.0`
-
-### 4.2 Configuración via .env
-
-Copia el archivo de ejemplo y edítalo:
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Contenido del `.env`:
-
-```dotenv
-# Instancia principal
-PRTG_HOST=https://prtg.empresa.com
-PRTG_USER=auditor
-PRTG_PASSHASH=1234567890
-PRTG_SITE_NAME=Guadalajara
-
-# Directorio de salida para los CSVs
-OUTPUT_DIR=./reportes
-```
-
-> El archivo `.env` está en `.gitignore` — nunca se sube al repositorio.
-
-### 4.3 Uso desde CLI
-
-#### Auditoría básica (un sitio)
+### 3.2 Uso básico
 
 ```bash
 python scripts/prtg_audit.py \
   --host https://prtg.empresa.com \
-  --user auditor \
-  --passhash TU_PASSHASH \
-  --site-name Guadalajara \
+  --user auditoria \
+  --passhash TU_PASSHASH_AQUI \
+  --site-name "Guadalajara" \
   --output ./reportes
 ```
 
-#### Parámetros disponibles
+Esto genera un archivo:
+```
+./reportes/prtg_audit_Guadalajara_20260511_170000.csv
+```
 
-| Parámetro | Obligatorio | Descripción | Default |
+### 3.3 Parámetros disponibles
+
+| Parámetro | Obligatorio | Descripción | Ejemplo |
 |---|---|---|---|
-| `--host` | ✅ | URL completa del servidor PRTG | — |
-| `--user` | ✅ | Usuario de PRTG | — |
-| `--passhash` | ✅ | Passhash del usuario | — |
-| `--site-name` | ✅ | Etiqueta del sitio (aparece en el CSV) | — |
-| `--output` | ❌ | Carpeta donde se guarda el CSV | `./output` |
-| `--modules` | ❌ | Módulos a ejecutar (separados por coma) | Todos |
-| `--timeout` | ❌ | Segundos de timeout por petición | `30` |
-| `--verify-ssl` | ❌ | Verificar certificado SSL | `True` |
-| `--no-verify-ssl` | ❌ | Deshabilitar verificación SSL | — |
+| `--host` | ✅ | URL base de PRTG | `https://prtg.empresa.com` |
+| `--user` | ✅ | Nombre de usuario | `auditoria` |
+| `--passhash` | ✅ | Passhash del usuario | `ABC123...` |
+| `--site-name` | ❌ | Etiqueta para el reporte | `"CDMX-DC1"` |
+| `--output` | ❌ | Carpeta de salida | `./reportes` (default: `.`) |
+| `--timeout` | ❌ | Segundos de espera por llamada | `30` (default) |
+| `--no-ssl-verify` | ❌ | Deshabilitar verificación SSL | (flag, sin valor) |
+| `--modules` | ❌ | Módulos a ejecutar (separados por coma) | `sensors,users` |
 
-#### Ejecutar módulos específicos
-
+**Ejemplo con todos los parámetros:**
 ```bash
-# Solo sensores down y sin umbrales
 python scripts/prtg_audit.py \
   --host https://prtg.empresa.com \
-  --user auditor \
-  --passhash TU_PASSHASH \
-  --site-name GDL \
-  --modules sensors_down,no_thresholds
+  --user auditoria \
+  --passhash ABC123DEF456 \
+  --site-name "Monterrey-DC2" \
+  --output /var/log/prtg-audits \
+  --timeout 60 \
+  --no-ssl-verify \
+  --modules sensors,users,notifications
 ```
 
-Módulos disponibles: `inventory`, `sensors_down`, `no_thresholds`, `paused`, `users`, `notifications`
+### 3.4 Auditoría multi-sitio
 
-#### Deshabilitar SSL (servidores con cert autofirmado)
+Para auditar múltiples instancias PRTG en un solo script, crea un archivo `sites.json`:
 
+```json
+[
+  {
+    "host": "https://prtg-gdl.empresa.com",
+    "user": "auditoria",
+    "passhash": "HASH_GDL",
+    "site_name": "Guadalajara"
+  },
+  {
+    "host": "https://prtg-mty.empresa.com",
+    "user": "auditoria",
+    "passhash": "HASH_MTY",
+    "site_name": "Monterrey"
+  },
+  {
+    "host": "https://prtg-cdmx.empresa.com",
+    "user": "auditoria",
+    "passhash": "HASH_CDMX",
+    "site_name": "CDMX"
+  }
+]
+```
+
+Luego ejecuta:
 ```bash
-python scripts/prtg_audit.py \
-  --host https://192.168.100.50 \
-  --user admin \
-  --passhash 9876543210 \
-  --site-name DC-Local \
-  --no-verify-ssl
+python scripts/prtg_audit.py --sites-file sites.json --output ./reportes
 ```
 
-### 4.4 Auditoría multi-sitio
+Se genera un CSV separado por cada sitio más un **reporte consolidado** con todos los sitios.
 
-Puedes crear un script bash/Python wrapper para iterar sobre múltiples instancias:
+> ⚠️ **Seguridad:** No guardes `sites.json` en el repositorio. Está en `.gitignore` por defecto.
 
-```bash
-#!/bin/bash
-# audit_all_sites.sh
+### 3.5 Automatización con cron
 
-SITES=(
-  "https://prtg-gdl.empresa.com|auditor|PASSHASH1|Guadalajara"
-  "https://prtg-cdmx.empresa.com|auditor|PASSHASH2|CDMX"
-  "https://prtg-mty.empresa.com|auditor|PASSHASH3|Monterrey"
-)
-
-for SITE in "${SITES[@]}"; do
-  IFS='|' read -r HOST USER PASSHASH NAME <<< "$SITE"
-  python scripts/prtg_audit.py \
-    --host "$HOST" \
-    --user "$USER" \
-    --passhash "$PASSHASH" \
-    --site-name "$NAME" \
-    --output ./reportes
-done
-
-echo "Auditoría multi-sitio completada. Reportes en ./reportes/"
-```
-
-```bash
-chmod +x audit_all_sites.sh
-./audit_all_sites.sh
-```
-
-Esto genera un CSV independiente por cada sitio:
-```
-reportes/
-├── prtg_audit_Guadalajara_20260511_140000.csv
-├── prtg_audit_CDMX_20260511_140015.csv
-└── prtg_audit_Monterrey_20260511_140030.csv
-```
-
-### 4.5 Automatización con cron
-
-#### Auditoría semanal (lunes 7:00 AM)
-
+**Auditoría diaria a las 7:00 AM:**
 ```bash
 crontab -e
 ```
 
-Agregar la línea:
-
+Agregar línea:
 ```cron
-0 7 * * 1 cd /opt/prtg-audit && source venv/bin/activate && python scripts/prtg_audit.py --host https://prtg.empresa.com --user auditor --passhash $(cat /etc/prtg_passhash) --site-name Produccion --output /opt/prtg-audit/reportes >> /var/log/prtg_audit.log 2>&1
+0 7 * * * /usr/bin/python3 /opt/prtg-audit/scripts/prtg_audit.py \
+  --host https://prtg.empresa.com \
+  --user auditoria \
+  --passhash TU_PASSHASH \
+  --site-name Produccion \
+  --output /var/log/prtg-audits \
+  >> /var/log/prtg-audits/cron.log 2>&1
 ```
 
-#### Guardar el passhash de forma segura en Linux
-
+**Auditoría semanal (lunes 6:00 AM) con limpieza de reportes viejos:**
 ```bash
-# Crear archivo con permisos restrictivos
-echo "TU_PASSHASH" > /etc/prtg_passhash
-chmod 600 /etc/prtg_passhash
-chown root:root /etc/prtg_passhash
+# Ejecutar auditoría
+0 6 * * 1 /usr/bin/python3 /opt/prtg-audit/scripts/prtg_audit.py --host https://prtg.empresa.com --user auditoria --passhash TU_HASH --output /var/log/prtg-audits
+
+# Limpiar reportes con más de 90 días
+0 6 * * 1 find /var/log/prtg-audits -name "prtg_audit_*.csv" -mtime +90 -delete
 ```
 
 ---
 
-## 5. Módulos de auditoría
+## 4. Dónde se guarda la información
 
-El aplicativo ejecuta 6 módulos de análisis, tanto en el dashboard web como en el script Python.
+Este punto es importante para entender el comportamiento del aplicativo:
 
-### Módulo 1 — Inventario general (`inventory`)
+### Dashboard Web
 
-Conecta al endpoint `/api/table.json` de PRTG y obtiene el conteo total de:
-- Grupos, dispositivos y sensores
-- Distribución por estado (OK, Warning, Down, Paused, Unknown)
-- Tiempo de uptime de la instancia PRTG
+```
+Browser abre el HTML
+       │
+       ▼
+┌─────────────────────┐
+│   RAM del browser   │  ← AQUÍ viven los datos durante la sesión
+│  (memoria volátil)  │
+└─────────────────────┘
+       │
+       │  Al cerrar/recargar → datos PERDIDOS
+       │  Al hacer "Exportar CSV" → datos GUARDADOS en tu disco
+       ▼
+  Tu disco local
+  prtg_audit_20260511_170523.csv
+```
 
-### Módulo 2 — Sensores Down/Warning (`sensors_down`)
+**El archivo HTML no crece.** Cada vez que abres el dashboard es exactamente el mismo archivo. Los datos que trae de PRTG son temporales.
 
-Lista todos los sensores que actualmente están en estado Down o Warning. Para cada uno muestra:
-- Nombre del sensor y dispositivo padre
-- Tiempo transcurrido desde que entró en ese estado
-- Mensaje de error de PRTG
-- Grupo al que pertenece
+### Script Python
 
-**Por qué importa:** Sensores down por más de 24h sin ticket asociado indican que nadie está respondiendo a las alertas.
+```
+Ejecución del script
+       │
+       ▼
+  Llamadas a API PRTG
+       │
+       ▼
+  Procesamiento en Python
+       │
+       ▼
+  /reportes/prtg_audit_SITIO_FECHA.csv  ← SE ACUMULA uno por ejecución
+  /reportes/prtg_audit_SITIO_FECHA.csv
+  /reportes/prtg_audit_SITIO_FECHA.csv
+       ↑
+  Sí va creciendo como historial
+```
 
-### Módulo 3 — Sensores sin umbrales (`no_thresholds`)
-
-Identifica sensores que **no tienen límites de alerta configurados**. Un sensor sin umbrales nunca generará una alerta de Warning o Critical, incluso si el valor que mide está fuera de rango.
-
-Ejemplo crítico: un sensor de uso de CPU al 99% no alertará si no tiene umbral configurado en 85%.
-
-**Por qué importa:** Es el hallazgo más común en auditorías PRTG y el de mayor riesgo operativo.
-
-### Módulo 4 — Sensores pausados (`paused`)
-
-Lista sensores en estado Paused con más de 7 días en ese estado. Clasifica entre:
-- Paused by user (pausa manual)
-- Paused by dependency (pausa en cascada por dispositivo padre)
-- Paused by schedule (pausa programada — puede estar mal configurada)
-
-**Por qué importa:** Sensores pausados indefinidamente generan puntos ciegos en el monitoreo.
-
-### Módulo 5 — Usuarios y privilegios (`users`)
-
-Obtiene todos los usuarios de PRTG y los clasifica por nivel de riesgo:
-
-| Nivel | Condición |
-|---|---|
-| Alto | Rol `PRTG System Administrator` |
-| Medio | Derechos de escritura en grupos sensibles |
-| Bajo | Solo lectura o acceso limitado a grupos específicos |
-
-También detecta:
-- Cuentas sin último login registrado (posiblemente inactivas)
-- Cuentas que comparten contraseña o passhash (misma cuenta genérica)
-
-### Módulo 6 — Notificaciones (`notifications`)
-
-Revisa todas las plantillas de notificación configuradas:
-- Estado (activa / inactiva)
-- Cantidad de disparadores asignados
-- Canal de entrega (email, webhook, SMS, push)
-- Última ejecución registrada
-
-**Hallazgos típicos:**
-- Notificaciones activas pero sin ningún disparador → nunca se ejecutarán
-- Notificaciones apuntando a correos que ya no existen
-- Canal de entrega sin configurar (campo vacío)
+Con el script Python **sí se acumula un historial** porque cada ejecución genera un nuevo CSV con timestamp diferente. Puedes tener años de histórico comparando los reportes por fecha.
 
 ---
 
-## 6. Checklist automático de salud
+## 5. Módulos de auditoría explicados
 
-El dashboard y el CSV incluyen un checklist de **8 puntos** evaluados automáticamente con base en los datos obtenidos de PRTG:
+### 5.1 Inventario general
 
-| # | Punto de control | Criterio para PASS |
+**¿Qué hace?** Consulta todos los dispositivos y sensores de la instancia PRTG.
+
+**Datos que recopila:**
+- Total de dispositivos (hosts)
+- Total de sensores y distribución por estado (OK / Down / Warning / Paused / Unknown)
+- Promedio de sensores por dispositivo
+- Dispositivos sin ningún sensor (puntos ciegos totales)
+
+**Hallazgo crítico que detecta:** Dispositivos con 0 sensores — están en PRTG pero no se monitorea nada de ellos.
+
+### 5.2 Sensores Down y Warning
+
+**¿Qué hace?** Lista todos los sensores que actualmente están en estado de alerta.
+
+**Datos que recopila:**
+- Nombre del sensor y dispositivo padre
+- Estado actual
+- Tiempo en ese estado (cuánto llevan fallando)
+- Último mensaje de error
+
+**Hallazgo crítico que detecta:** Sensores que llevan más de 24 horas en Down sin que nadie los haya atendido — indica falta de proceso de respuesta a alertas.
+
+### 5.3 Sensores sin umbrales
+
+**¿Qué hace?** Identifica sensores que están activos (verde/OK) pero que nunca generarán una alerta porque no tienen definidos los límites de cuándo es normal y cuándo es anómalo.
+
+**¿Por qué es un riesgo grave?** Un sensor de CPU al 98% aparece como verde si no tiene umbral configurado. PRTG mide y grafica, pero nunca alerta. Es una falsa sensación de monitoreo.
+
+**Ejemplo práctico:**
+```
+Sensor: CPU Usage — Servidor-DB-01
+Valor actual: 94%
+Estado PRTG: ✅ OK
+Umbral Warning: (no configurado)
+Umbral Error: (no configurado)
+Riesgo: ALTO — el servidor puede llegar al 100% sin que nadie sea notificado
+```
+
+### 5.4 Sensores pausados
+
+**¿Qué hace?** Lista todos los sensores en estado "Paused" (pausados manualmente) y calcula cuántos días llevan pausados.
+
+**Umbral de riesgo:**
+- **< 7 días:** Normal (mantenimiento programado)
+- **7–30 días:** Sospechoso (¿se olvidaron de reactivarlo?)
+- **> 30 días:** Punto ciego crónico (riesgo alto)
+
+**Hallazgo que detecta:** Sensores que fueron pausados durante un mantenimiento y nadie los reactivó, creando puntos ciegos permanentes en el monitoreo.
+
+### 5.5 Usuarios y privilegios
+
+**¿Qué hace?** Obtiene todas las cuentas de PRTG y las clasifica por nivel de riesgo según sus permisos.
+
+**Clasificación de riesgo:**
+
+| Nivel | Criterio | Acción recomendada |
 |---|---|---|
-| 1 | Sensores sin umbrales | Menos del 10% del total |
-| 2 | Sensores pausados crónicos | Menos del 5% del total |
-| 3 | Notificaciones activas | Al menos 1 notificación activa con disparador |
-| 4 | Notificaciones sin disparador | Ninguna notificación activa sin disparador |
-| 5 | Usuarios administrador | Máximo 3 cuentas con rol de admin |
-| 6 | Sensores down sin atender | Ningún sensor down por más de 48h |
-| 7 | Cobertura de dispositivos | Todos los dispositivos tienen al menos 1 sensor |
-| 8 | Diversidad de canales de alerta | Al menos 2 canales distintos configurados |
+| 🔴 Alto | Rol `PRTG System Administrator` | Verificar que sea una cuenta nombrada, no genérica |
+| 🔴 Alto | Contraseña sin expiración + admin | Establecer política de rotación |
+| 🟡 Medio | Acceso a múltiples grupos con escritura | Revisar si el acceso amplio está justificado |
+| 🟡 Medio | Cuentas sin actividad en 90+ días | Considerar deshabilitación |
+| 🟢 Bajo | Solo lectura, grupo específico | Sin acción requerida |
 
-El **score** se calcula como: `(puntos en PASS / 8) × 100%`
+**Dato importante:** PRTG no expone el hash de contraseñas a través de la API. El módulo evalúa solo permisos y configuración de cuenta, no la fortaleza de contraseñas.
+
+### 5.6 Notificaciones
+
+**¿Qué hace?** Revisa todas las plantillas de notificación configuradas en PRTG.
+
+**Problemas que detecta:**
+
+1. **Plantilla inactiva** — existe pero está deshabilitada. Si todos los sensores la usan y está deshabilitada, nadie recibe alertas.
+2. **Sin disparador asignado** — la plantilla está activa pero ningún sensor o dispositivo la tiene configurada como receptor de alertas.
+3. **Sin método de entrega** — plantilla sin email, SMS, webhook ni script configurado. Aparentemente activa pero no hace nada.
+
+---
+
+## 6. Checklist automático y scoring
+
+El dashboard evalúa 8 criterios y calcula un score de auditoría de 0 a 100%:
+
+| # | Criterio | Peso | Descripción |
+|---|---|---|---|
+| 1 | Sensores Down < 5% | 15 pts | Menos del 5% de sensores en estado Down |
+| 2 | Sin sensores sin umbrales | 20 pts | Todos los sensores tienen límites configurados |
+| 3 | Pausados < 10% | 10 pts | No más del 10% de sensores pausados |
+| 4 | Sin pausados crónicos | 15 pts | Ningún sensor pausado más de 30 días |
+| 5 | Administradores ≤ 3 | 10 pts | Máximo 3 cuentas con rol administrador |
+| 6 | Sin cuentas inactivas | 10 pts | No hay cuentas sin actividad en 90+ días |
+| 7 | Notificaciones activas | 10 pts | Al menos una notificación activa y asignada |
+| 8 | Sin dispositivos sin sensores | 10 pts | Todos los dispositivos tienen al menos 1 sensor |
+
+**Interpretación del score:**
+
+| Score | Estado | Significado |
+|---|---|---|
+| 90–100% | 🟢 Excelente | Infraestructura bien configurada |
+| 70–89% | 🟡 Aceptable | Áreas de mejora identificadas |
+| 50–69% | 🟠 Deficiente | Brechas significativas de monitoreo |
+| < 50% | 🔴 Crítico | Monitoreo no confiable |
 
 ---
 
 ## 7. Lectura del reporte CSV
 
-El archivo CSV exportado tiene las siguientes secciones separadas por líneas de encabezado:
+El CSV exportado está en **UTF-8 con BOM** para compatibilidad con Excel en Windows.
+
+### Abrir en Microsoft Excel
+
+1. No hacer doble clic directo (puede mostrar caracteres raros)
+2. Abrir Excel → **Datos** → **Desde Texto/CSV**
+3. Seleccionar el archivo
+4. Confirmar codificación **UTF-8** y delimitador **coma**
+5. Clic en **Cargar**
+
+### Abrir en LibreOffice Calc
+
+1. Archivo → Abrir
+2. Seleccionar el CSV
+3. En el diálogo: Conjunto de caracteres **Unicode (UTF-8)**, Separador **Coma**
+4. Aceptar
+
+### Estructura del CSV
+
+El archivo tiene secciones separadas por una fila de encabezado en mayúsculas:
 
 ```
-=== RESUMEN EJECUTIVO ===
-Fecha,Sitio,Score,Dispositivos,Sensores_Total,Sensores_OK,Sensores_Down,...
+## RESUMEN EJECUTIVO ##
+fecha,sitio,total_dispositivos,sensores_ok,sensores_down,...
 
-=== SENSORES SIN UMBRALES ===
-Sensor_ID,Nombre,Dispositivo,Grupo,Estado,Tipo
+## SENSORES ##
+nombre,dispositivo,estado,valor,umbral_configurado,...
 
-=== SENSORES DOWN/WARNING ===
-Sensor_ID,Nombre,Dispositivo,Estado,Mensaje,Tiempo_En_Estado
+## USUARIOS ##
+usuario,rol,ultimo_acceso,nivel_riesgo,...
 
-=== USUARIOS ===
-Usuario,Rol,Nivel_Riesgo,Ultimo_Login,Grupos_Acceso
+## NOTIFICACIONES ##
+nombre,activa,disparadores,metodo,...
 
-=== NOTIFICACIONES ===
-Nombre,Estado,Disparadores,Canal,Ultima_Ejecucion
-
-=== CHECKLIST ===
-Punto,Resultado,Detalle
+## CHECKLIST ##
+criterio,resultado,puntos,recomendacion,...
 ```
-
-**Para importar en Excel:**
-1. Abrir Excel → Datos → Desde texto/CSV
-2. Seleccionar el archivo
-3. Delimitador: coma
-4. Codificación: UTF-8
-
-**Para importar en LibreOffice Calc:**
-- Doble clic directo sobre el archivo CSV
-- Seleccionar coma como separador y UTF-8 como codificación
 
 ---
 
-## 8. Obtener el Passhash de PRTG
+## 8. Resolución de problemas
 
-El **Passhash** es un identificador numérico único que PRTG asigna a cada cuenta. Es equivalente a la contraseña para uso en la API, pero no la expone en texto plano.
+### Error: "Failed to fetch" o "CORS error" en el Dashboard Web
 
-### Pasos para obtenerlo
+**Causa:** El browser bloquea la solicitud al servidor PRTG por política de seguridad cross-origin.
 
-1. Iniciar sesión en PRTG con la cuenta que se usará para la auditoría
-2. Hacer clic en el nombre de usuario (esquina superior derecha)
-3. Seleccionar **"My Account"** (Mi cuenta)
-4. En la sección **"API / Passhash"**, copiar el valor numérico de ~10 dígitos
+**Soluciones:**
 
-### Via URL directa
-
-```
-https://TU-PRTG.empresa.com/api/getpasshash.htm?username=USUARIO&password=CONTRASEÑA
+**Opción A — Usar el Script Python** (recomendada para producción):
+```bash
+python scripts/prtg_audit.py --host https://tu-prtg.com --user x --passhash y
 ```
 
-Esta URL devuelve únicamente el passhash en texto plano. Úsala una sola vez para obtenerlo y luego usa el passhash en lugar de la contraseña.
+**Opción B — Agregar cabeceras CORS en PRTG** (solo si tienes acceso al servidor):
+En el servidor PRTG, agregar en `webserver.conf`:
+```
+Access-Control-Allow-Origin: *
+```
 
-### Buenas prácticas de seguridad
+**Opción C — Usar el proxy Nginx incluido** (para despliegue en servidor):
+```bash
+docker-compose up -d
+# El proxy en el puerto 8080 reenvía las solicitudes evitando CORS
+```
 
-- Crear una cuenta PRTG **de solo lectura** exclusiva para auditoría (no usar el admin principal)
-- Rotar el passhash después de cada auditoría formal
-- Guardar el passhash en un gestor de contraseñas o en un archivo con permisos `600`
-- Nunca incluirlo directamente en scripts que se suban a repositorios públicos
+### Error: SSL Certificate Verify Failed
 
----
+**Causa:** PRTG usa un certificado SSL autofirmado (común en entornos internos).
 
-## 9. Resolución de problemas
+**Solución en el script Python:**
+```bash
+python scripts/prtg_audit.py --host https://prtg.local --user x --passhash y --no-ssl-verify
+```
 
-### Error: "Failed to fetch" o datos vacíos en el dashboard
+> ⚠️ Usar `--no-ssl-verify` solo en redes internas de confianza.
 
-**Causa probable:** Restricción CORS del navegador.
+### Error: "401 Unauthorized" o "Invalid credentials"
 
-**Solución:** Usar el script Python desde la terminal. Si necesitas usar el dashboard, revisa la sección [3.7 Problema de CORS](#37-problema-de-cors-y-cuándo-usarlo).
+**Verificar:**
+1. ¿Estás usando el **passhash** y no la contraseña?
+2. El passhash se obtiene en: PRTG → My Account → API → Passhash
+3. ¿La cuenta tiene permisos para acceder a la API?
+4. ¿El usuario tiene al menos acceso de **solo lectura** a los objetos raíz?
 
----
+### El dashboard tarda mucho o no carga todos los sensores
 
-### Error: `requests.exceptions.SSLError`
+**Causa:** PRTG grande con miles de sensores. La API devuelve resultados paginados.
 
-**Causa probable:** El servidor PRTG tiene un certificado SSL autofirmado.
+**Solución:** Usar el script Python con timeout extendido:
+```bash
+python scripts/prtg_audit.py --host https://prtg.com --user x --passhash y --timeout 120
+```
+
+### Los datos del reporte CSV se ven en una sola columna en Excel
+
+**Causa:** Excel interpretó el archivo con separador de punto y coma en lugar de coma.
 
 **Solución:**
-```bash
-python scripts/prtg_audit.py ... --no-verify-ssl
+1. En Excel: pestaña **Datos** → **Texto en columnas**
+2. Seleccionar **Delimitado** → **Coma**
+3. Finalizar
+
+---
+
+## 9. Seguridad y buenas prácticas
+
+### Cuenta de auditoría dedicada
+
+Crea una cuenta PRTG exclusiva para auditoría con los permisos mínimos necesarios:
+
+```
+Nombre sugerido: svc_auditoria (o audit_readonly)
+Rol: Read Only User
+Acceso: Solo lectura a grupos raíz
+Contraseña: Rotar cada 90 días
+Uso: Solo para ejecutar este script
 ```
 
-> ⚠️ Usar `--no-verify-ssl` solo en redes internas de confianza.
+**Pasos en PRTG:**
+1. Setup → User Accounts → Add User Account
+2. Tipo: **PRTG User** (no Windows User)
+3. Rol: **Read Only User**
+4. Member of: el grupo raíz (para ver todo) o grupos específicos
+5. Guardar → ir al perfil del usuario → copiar el **Passhash**
 
----
+### Protección de credenciales
 
-### Error: `401 Unauthorized`
+- ✅ Usar variables de entorno: `export PRTG_PASSHASH=tu_hash`
+- ✅ El archivo `.env` está en `.gitignore` — nunca se sube al repo
+- ✅ Los reportes CSV están en `.gitignore` — no se sincronizan
+- ❌ No hardcodear el passhash en scripts de cron — usar variables de entorno
+- ❌ No compartir el passhash por Slack/Teams/email
 
-**Causa probable:** Passhash incorrecto o usuario inexistente.
-
-**Verificación:**
+**Uso con variable de entorno en cron:**
 ```bash
-curl -k "https://TU-PRTG/api/table.json?content=devices&output=json&username=USUARIO&passhash=PASSHASH&count=1"
+# /etc/cron.d/prtg-audit
+PRTG_HOST=https://prtg.empresa.com
+PRTG_USER=auditoria
+PRTG_HASH=TU_PASSHASH_AQUI
+
+0 7 * * * root python3 /opt/prtg-audit/scripts/prtg_audit.py \
+  --host $PRTG_HOST --user $PRTG_USER --passhash $PRTG_HASH \
+  --output /var/log/prtg-audits
 ```
 
-Si devuelve `{"prtg-version":...}` el acceso es correcto. Si devuelve `{"error":1}`, el passhash es inválido.
+### Qué datos NO expone este aplicativo
 
----
-
-### Error: `ConnectionRefusedError` o timeout
-
-**Causas posibles:**
-- El puerto de PRTG no es el estándar (443/80) — especificar el puerto en la URL: `https://192.168.1.100:8443`
-- Firewall bloqueando el acceso — verificar con `telnet 192.168.1.100 8443`
-- VPN no conectada
-
----
-
-### El score aparece en 0% con datos correctos
-
-**Causa probable:** La cuenta de auditoría no tiene permisos para leer la configuración de notificaciones o usuarios.
-
-**Solución:** Asegurarse de que la cuenta tenga al menos permisos de lectura en **todos los grupos** de PRTG, incluyendo el grupo raíz.
-
----
-
-### El CSV se descarga vacío
-
-**Causa:** El Export se activó antes de que terminara la carga de datos.
-
-**Solución:** Esperar a que el score y todos los paneles muestren datos antes de exportar. El botón de exportar se habilita automáticamente cuando la carga termina.
+- ❌ No lee contraseñas de usuarios PRTG (la API no las devuelve)
+- ❌ No modifica ninguna configuración de PRTG (solo lectura)
+- ❌ No almacena datos en ningún servidor externo
+- ❌ No envía telemetría ni métricas a terceros
 
 ---
 
@@ -562,19 +635,19 @@ Si devuelve `{"prtg-version":...}` el acceso es correcto. Si devuelve `{"error":
 
 | Término | Definición |
 |---|---|
-| **Passhash** | Identificador numérico de autenticación de PRTG, equivalente a contraseña para uso en API |
-| **Sensor** | Unidad de monitoreo en PRTG que mide un parámetro específico (CPU, ping, disco, etc.) |
-| **Umbral (Threshold)** | Valor límite configurado en un sensor que, al superarse, genera una alerta |
-| **CORS** | Cross-Origin Resource Sharing — política de seguridad del navegador que restringe llamadas a dominios distintos |
-| **Passhash** | Token numérico único que PRTG asigna a cada usuario para autenticación en la API |
-| **Sensor Down** | Sensor que no puede ejecutar su medición, generalmente por falla de conectividad o del agente |
-| **Sensor Paused** | Sensor detenido manualmente, por dependencia o por programación |
-| **Disparador (Trigger)** | Condición que activa una notificación cuando un sensor cambia de estado |
-| **API JSON de PRTG** | Interfaz HTTP de PRTG disponible en `/api/table.json` que devuelve datos de monitoreo en formato JSON |
-| **Score de salud** | Porcentaje calculado a partir del checklist de 8 puntos que refleja la calidad de la configuración PRTG |
-| **Multi-sitio** | Modo de auditoría que itera sobre múltiples instancias PRTG independientes en una sola ejecución |
-| **CSV de auditoría** | Archivo de valores separados por coma generado como evidencia y registro de la auditoría realizada |
+| **Passhash** | Token de autenticación de PRTG para la API REST. Equivale a una contraseña de API pero más seguro porque es de solo lectura y se puede revocar sin cambiar la contraseña del usuario. |
+| **Sensor** | Unidad de medición en PRTG. Cada sensor monitorea una métrica específica (ping, CPU, disco, servicio, puerto, etc.). Un dispositivo puede tener N sensores. |
+| **Umbral (Threshold)** | Límites configurados en un sensor que definen cuándo el valor es normal (verde), advertencia (amarillo) o error (rojo). Sin umbral, el sensor siempre aparece verde sin importar el valor medido. |
+| **CORS** | Cross-Origin Resource Sharing. Política de seguridad de los browsers que bloquea solicitudes HTTP a dominios diferentes al origen de la página. Afecta al dashboard web pero no al script Python. |
+| **Passhash vs Password** | La contraseña es el acceso principal a la interfaz web. El passhash es un hash derivado de la contraseña, exclusivo para la API, que permite autenticación sin exponer la contraseña real. |
+| **Estado Down** | Sensor que no puede obtener datos o cuyo valor supera el umbral de error. Genera alerta si las notificaciones están configuradas. |
+| **Estado Warning** | Sensor cuyo valor supera el umbral de advertencia pero no el de error. Indica una situación a vigilar. |
+| **Estado Paused** | Sensor deshabilitado manualmente (o por una ventana de mantenimiento). No genera alertas ni consume licencia. |
+| **Estado Unknown** | Sensor que nunca ha sido ejecutado o cuyo resultado no puede determinarse. |
+| **Score de auditoría** | Puntaje de 0-100% calculado evaluando 8 criterios de buenas prácticas de PRTG. Indica el nivel de madurez del monitoreo. |
+| **Multi-sitio** | Capacidad del script Python para auditar varias instancias PRTG (sitios físicos o lógicos) en una sola ejecución, generando un reporte consolidado. |
+| **SSL Verify** | Verificación del certificado SSL del servidor PRTG. Deshabilitarla (`--no-ssl-verify`) es necesario cuando PRTG usa certificados autofirmados. Solo recomendado en redes internas. |
 
 ---
 
-*Manual generado para PRTG Audit Dashboard v1.0 — Mayo 2026*
+*Manual generado para PRTG Audit Dashboard v1.0.0 — Mayo 2026*
