@@ -1,170 +1,157 @@
 # PRTG Audit Dashboard
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
-[![PRTG](https://img.shields.io/badge/PRTG-Network%20Monitor-orange.svg)](https://www.paessler.com/prtg)
+> Herramienta de auditoría técnica para infraestructuras PRTG — hasta 14 instancias desde un solo panel.
 
-Herramienta de auditoría técnica para instancias de **PRTG Network Monitor**. Detecta brechas de configuración, sensores sin cobertura real, cuentas con privilegios excesivos y notificaciones inoperantes.
-
----
-
-## Índice
-
-- [Componentes](#componentes)
-- [Inicio rápido — Dashboard Web](#inicio-rápido--dashboard-web)
-- [Inicio rápido — Script Python](#inicio-rápido--script-python)
-- [Módulos de auditoría](#módulos-de-auditoría)
-- [¿Dónde se guardan los datos?](#dónde-se-guardan-los-datos)
-- [Despliegue con Docker](#despliegue-con-docker)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Seguridad](#seguridad)
-- [Documentación completa](#documentación-completa)
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![HTML estático](https://img.shields.io/badge/Dashboard-HTML%20est%C3%A1tico-orange.svg)](#)
 
 ---
 
-## Componentes
+## ¿Qué es?
 
-| Archivo | Descripción | Cuándo usar |
+Dos herramientas complementarias para auditar configuración y estado de servidores PRTG:
+
+| Herramienta | Archivo | Uso |  
 |---|---|---|
-| `prtg-audit-dashboard.html` | Dashboard web interactivo, sin instalación | Revisión visual, presentaciones, demo |
-| `scripts/prtg_audit.py` | Script CLI para automatización y multi-sitio | Cron, multi-sitio, redes con CORS |
+| **Dashboard Web** | `prtg-audit-dashboard.html` | Revisión visual, presentaciones, modo Demo |
+| **Script Python** | `scripts/prtg_audit.py` | Automatización, historial CSV, multi-sitio en batch |
 
 ---
 
-## Inicio rápido — Dashboard Web
+## Arquitectura y persistencia
 
-1. Descargar o clonar el repositorio
-2. Abrir `prtg-audit-dashboard.html` en el navegador (doble clic, sin servidor)
-3. Ingresar la URL de tu PRTG, usuario y **passhash**
-4. Presionar **"Ejecutar Auditoría"**
-5. Exportar el reporte con **"Exportar CSV"**
+**El dashboard web es 100% estático** — corre en el browser sin servidor ni base de datos. Toda la configuración (instancias, credenciales, datos cargados) vive en la RAM del navegador durante la sesión. Al cerrar o recargar la pestaña, los datos desaparecen.
 
-> **¿Cómo obtener el passhash?**  
-> PRTG → tu usuario (esquina superior derecha) → **My Account** → sección **API** → copiar el valor *Passhash*
+```
+Browser (RAM)  ──fetch──▶  API PRTG (/api/table.json)
+   │
+   └── Exportar CSV ──▶  Disco local (historial manual)
 
-> **Nota sobre CORS:** Si el browser bloquea la conexión a PRTG, usa el script Python o el [proxy Docker incluido](#despliegue-con-docker).
+Script Python  ──requests──▶  API PRTG
+   │
+   └── CSV con timestamp ──▶  Disco (historial automático)
+```
+
+**¿Por qué dos herramientas?**  
+El browser tiene restricción CORS: si PRTG no permite llamadas desde el origen del dashboard, las bloqueará. El script Python no pasa por el browser y no tiene esa restricción, por lo que siempre puede conectarse directamente.
 
 ---
 
-## Inicio rápido — Script Python
+## Inicio rápido
+
+### Dashboard Web
 
 ```bash
-git clone https://github.com/esiapti2-maker/PRTG-Audit-Dashboard.git
-cd PRTG-Audit-Dashboard
+# Opción 1 — abrir directamente (red interna sin CORS)
+open prtg-audit-dashboard.html
+
+# Opción 2 — servir con Docker
+docker compose up -d
+# Accede en http://localhost:8080
+```
+
+1. Ve a la sección **Instancias** en el menú lateral.
+2. Haz clic en **Editar** en cualquier slot y configura: nombre, host, usuario y passhash.
+3. Selecciona la instancia en el selector del sidebar.
+4. Haz clic en **Conectar y auditar**.
+
+> El passhash se obtiene en PRTG: *Setup → My Account → Passhash*.
+
+### Script Python
+
+```bash
 pip install -r requirements.txt
 
 python scripts/prtg_audit.py \
   --host https://tu-prtg.empresa.com \
-  --user auditoria \
+  --user auditor \
   --passhash TU_PASSHASH \
-  --site-name Guadalajara \
+  --site-name "GDL Principal" \
   --output ./reportes
 ```
 
-Genera: `./reportes/prtg_audit_Guadalajara_20260511_170000.csv`
+---
 
-**Parámetros principales:**
+## Funcionalidades
 
-| Parámetro | Descripción |
-|---|---|
-| `--host` | URL base de PRTG (con protocolo) |
-| `--user` | Nombre de usuario PRTG |
-| `--passhash` | Passhash del usuario (no la contraseña) |
-| `--site-name` | Etiqueta del sitio para el reporte |
-| `--output` | Carpeta donde guardar el CSV |
-| `--no-ssl-verify` | Deshabilitar SSL (para certs autofirmados) |
-| `--timeout` | Segundos de espera por llamada (default: 30) |
+### Dashboard Web
+
+- **Gestión de hasta 14 instancias** — slots configurables con nombre, host, usuario y passhash
+- **KPIs en tiempo real** — dispositivos, sensores OK/Down, sin umbrales, score de auditoría 0-100%
+- **Tabla de sensores** — filtro por estado y búsqueda de texto libre en tiempo real
+- **Detección de sensores sin umbrales** — sensores con `limitmode=0` que nunca generarán alertas
+- **Clasificación de riesgo de usuarios** — Alto / Medio / Bajo según tipo de cuenta
+- **Revisión de notificaciones** — plantillas inactivas o sin disparador configurado
+- **Checklist automático** — 8 verificaciones con score final
+- **Modo Demo** — datos de ejemplo sin necesitar acceso a PRTG
+- **Exportar CSV** — evidencia descargable con todos los hallazgos y el checklist
+- **Tema claro/oscuro** — toggle manual + respeta `prefers-color-scheme`
+
+### Script Python
+
+- Auditoría desde CLI sin restricción CORS
+- Exporta CSV con timestamp por instancia (historial acumulable)
+- Soporte multi-sitio via archivo JSON de configuración
+- Compatible con cron para auditorías programadas
+- Parámetros: `--host`, `--user`, `--passhash`, `--site-name`, `--output`, `--no-verify-ssl`
 
 ---
 
-## Módulos de auditoría
+## Checklist de auditoría — 8 verificaciones
 
-| Módulo | Qué detecta |
-|---|---|
-| **Inventario general** | Total de dispositivos y sensores, distribución de estados, dispositivos sin sensores |
-| **Sensores Down/Warning** | Alertas activas y tiempo sin atender |
-| **Sensores sin umbrales** | Sensores que nunca alertarán aunque el valor sea anómalo |
-| **Sensores pausados** | Puntos ciegos por pausas crónicas (>7 y >30 días) |
-| **Usuarios y privilegios** | Clasificación de riesgo por nivel de acceso y actividad reciente |
-| **Notificaciones** | Plantillas inactivas, sin disparador o sin método de entrega |
+| # | Verificación | Criterio |
+|---|---|---|
+| 1 | Sin sensores en estado Down | 0 sensores Down |
+| 2 | Warnings controlados | < 5 sensores Warning |
+| 3 | Sin sensores sin umbrales | 0 sensores sin `LimitMaxError` |
+| 4 | Sin sensores pausados | 0 sensores Pausados |
+| 5 | Todas las notificaciones activas | 0 plantillas inactivas |
+| 6 | Sin usuarios de alto riesgo | 0 cuentas Admin no controladas |
+| 7 | Inventario poblado | Al menos 1 dispositivo |
+| 8 | Cobertura mínima | Al menos 5 sensores |
 
----
-
-## ¿Dónde se guardan los datos?
-
-**Dashboard Web:** Los datos viven únicamente en la RAM del browser durante la sesión activa. Al cerrar o recargar, se pierden. El único mecanismo de persistencia es el botón **"Exportar CSV"**.
-
-**Script Python:** Genera un nuevo archivo CSV con timestamp en cada ejecución, acumulando un historial en la carpeta `--output`. El script y el HTML nunca crecen — solo los reportes exportados.
-
-```
-./reportes/
-├── prtg_audit_Guadalajara_20260509_070000.csv
-├── prtg_audit_Guadalajara_20260510_070000.csv
-└── prtg_audit_Guadalajara_20260511_070000.csv  ← historial acumulado
-```
+**Score = (cumplidas / 8) × 100%** — verde ≥80%, naranja 60-79%, rojo <60%
 
 ---
 
-## Despliegue con Docker
-
-El repo incluye un proxy Nginx que resuelve errores CORS al abrir el dashboard en un servidor:
-
-```bash
-# Copiar y editar variables de entorno
-cp .env.example .env
-nano .env  # configurar PRTG_HOST, PRTG_USER, PRTG_PASSHASH
-
-# Levantar el servicio
-docker-compose up -d
-
-# Acceder al dashboard
-open http://localhost:8080
-```
-
----
-
-## Estructura del proyecto
+## Estructura del repositorio
 
 ```
 PRTG-Audit-Dashboard/
-├── prtg-audit-dashboard.html   ← Dashboard web (abrir directamente)
+├── prtg-audit-dashboard.html   # Dashboard web estático (HTML all-in-one)
 ├── scripts/
-│   └── prtg_audit.py           ← Script Python CLI
+│   └── prtg_audit.py           # Script Python CLI
 ├── docs/
-│   └── MANUAL.md               ← Manual completo de usuario
-├── proxy/                      ← Configuración Nginx para Docker
-├── src/                        ← Fuentes y assets adicionales
-├── requirements.txt            ← Solo: requests>=2.31.0
+│   └── manual.md               # Manual completo de usuario
+├── proxy/                      # Config Nginx (resolver CORS con Docker)
 ├── Dockerfile
 ├── docker-compose.yml
-├── .env.example                ← Plantilla de variables de entorno
-└── .gitignore                  ← Excluye .env, *.csv, reportes/
+├── requirements.txt            # requests>=2.31.0
+├── .env.example                # Plantilla de variables de entorno
+└── .gitignore                  # Excluye reportes CSV y archivos .env
 ```
 
 ---
 
-## Seguridad
+## CORS — Cuándo usar cada herramienta
 
-- Usar cuenta PRTG de **solo lectura** exclusiva para auditoría (`svc_auditoria`)
-- El passhash **nunca se guarda** en el repositorio (incluido en `.gitignore`)
-- Los reportes CSV tampoco se sincronizan al repo
-- El aplicativo es **100% de solo lectura** — no modifica ninguna configuración de PRTG
-- No envía datos a servidores externos
-
----
-
-## Documentación completa
-
-Consulta el **[Manual de Usuario](docs/MANUAL.md)** para:
-
-- Arquitectura detallada de los dos componentes
-- Cómo funciona el almacenamiento de datos (RAM vs disco)
-- Configuración multi-sitio y auditoría de toda la infraestructura
-- Automatización con cron jobs
-- Resolución de problemas (CORS, SSL, permisos, Excel)
-- Interpretación del score de auditoría y checklist de 8 puntos
-- Glosario técnico (Passhash, Umbral, CORS, etc.)
+| Escenario | Herramienta recomendada |
+|---|---|
+| Browser en red interna, PRTG accesible directamente | Dashboard Web |
+| Browser con error "CORS policy" | Script Python |
+| Auditoría programada / cron | Script Python |
+| Demo sin acceso a PRTG | Dashboard Web (modo Demo) |
+| Presentación de hallazgos | Dashboard Web + Exportar CSV |
 
 ---
 
-> Desarrollado para infraestructura enterprise con PRTG Network Monitor
+## Documentación
+
+📖 [Manual completo de usuario](docs/manual.md) — Guía detallada con arquitectura, persistencia, todos los módulos, automatización con cron, resolución de problemas y glosario técnico.
+
+---
+
+## Licencia
+
+MIT — libre para uso interno, modificación y distribución.
