@@ -1,93 +1,186 @@
-"""
-src/features/notifications/audit.py
-=====================================
-Feature: Auditoría de notificaciones / alertas.
+"""Módulo de auditoría de notificaciones/acciones PRTG.
 
 Detecta:
-  - Notificaciones pausadas o desactivadas (gap de alertas)
-  - Notificaciones sin trigger_count (plantillas huérfanas sin sensores vinculados)
-  - Notificaciones sin recipientes configurados (email vacío)
-  - Clasifica cada notificación con nivel de riesgo
+- Plantillas sin ningún método de entrega configurado
+- Plantillas inactivas (activo = false)
+- Plantillas huérfanas (ningún sensor/dispositivo las usa como trigger)
+- Plantillas sin email cuando no hay SMS ni exec (punto ciego de alertas)
+- Delay excesivo (postpone > 60 min) en notificaciones críticas
+- Nombre genérico o por defecto ("Notification #1", etc.)
 """
+
 from __future__ import annotations
-from src.core.client import PRTGClient
-from src.core.constants import API_TABLE, NOTIF_COLS
-from src.core.exceptions import PRTGDataError
+
+import logging
+import re
+from typing import Any, Dict, List
+
+from .types import NotificationRecord
+
+logger = logging.getLogger(__name__)
+
+_GENERIC_NAME_PATTERN = re.compile(
+    r"^(notification|notificaci[oó]n|alerta|alert)\s*#?\d*$",
+    re.IGNORECASE,
+)
+_EXCESSIVE_POSTPONE_MINUTES = 60
 
 
-class NotificationAudit:
-    """
-    Clasifica notificaciones PRTG en activas y pausadas,
-    enriqueciendo cada registro con diagnóstico de riesgo.
+def _parse_notification(raw: Dict[str, Any]) -> NotificationRecord:
+    """Construye un NotificationRecord desde el dict crudo de la API."""
+    objid = int(raw.get("objid", 0))
+    name = str(raw.get("name", "")).strip()
+    active = str(raw.get("active", "1")) not in ("0", "false", "False")
+    schedule = str(raw.get("schedule", "")).strip()
+    subject = str(raw.get("subject", "")).strip()
 
-    Uso:
-        result = NotificationAudit(client).run()
-        # result["active"] — lista de notificaciones activas
-        # result["paused"] — lista de notificaciones pausadas/sin uso
-    """
+    # Postpone puede venir como string "5 minutes" o int
+    raw_postpone = raw.get("postpone", 0)
+    if isinstance(raw_postpone, str):
+        digits = re.findall(r"\d+", raw_postpone)
+        postpone = int(digits[0]) if digits else 0
+    else:
+        postpone = int(raw_postpone)
 
-    def __init__(self, client: PRTGClient) -> None:
-        self.client = client
+    # Métodos de entrega — PRTG los reporta como flags en el raw dict
+    # El campo puede llamarse 'emailaddress', 'hasemail', etc., según versión
+    has_email = bool(
+        raw.get("emailaddress")
+        or raw.get("hasemail")
+        or raw.get("email")
+        or raw.get("toemail")
+    )
+    has_sms = bool(
+        raw.get("hassms")
+        or raw.get("smsnumber")
+        or raw.get("phonenumber")
+    )
+    has_exec = bool(
+        raw.get("hasexe")
+        or raw.get("exefilelocation")
+        or raw.get("exefile")
+    )
 
-    def run(self) -> dict[str, list]:
-        print("  [notifications] Obteniendo notificaciones...")
-        data = self.client.get(API_TABLE, {
-            "content": "notifications",
-            "columns": NOTIF_COLS,
-            "count":   5_000,
-            "output":  "json",
-        })
+    triggers_count = int(raw.get("triggers", raw.get("triggerscount", 0)))
 
-        raw = data.get("notifications", [])
-        if not isinstance(raw, list):
-            raise PRTGDataError("La API no devolvió una lista de notificaciones.")
+    return NotificationRecord(
+        objid=objid,
+        name=name,
+        active=active,
+        has_email=has_email,
+        has_sms=has_sms,
+        has_exec=has_exec,
+        triggers_count=triggers_count,
+        schedule=schedule,
+        postpone=postpone,
+        subject=subject,
+    )
 
-        active, paused = [], []
 
-        for n in raw:
-            record = self._parse(n)
-            if record["is_paused"]:
-                paused.append(record)
-            else:
-                active.append(record)
+def _detect_issues(n: NotificationRecord) -> NotificationRecord:
+    """Rellena n.issues con todos los problemas detectados."""
+    issues: List[str] = []
 
-        print(
-            f"  [notifications] Activas={len(active)} | "
-            f"Pausadas/sin uso={len(paused)}"
+    if not n.active:
+        issues.append("Plantilla inactiva — no se disparará aunque haya trigger")
+
+    if not n.has_delivery_method:
+        issues.append("Sin método de entrega (no email, no SMS, no ejecutable)")
+
+    if n.is_orphan:
+        issues.append("Plantilla huérfana — ningún sensor/dispositivo la referencia")
+
+    if not n.has_email and not n.has_sms and not n.has_exec:
+        issues.append("Punto ciego de alertas: sin canal de notificación configurado")
+
+    if n.postpone > _EXCESSIVE_POSTPONE_MINUTES:
+        issues.append(
+            f"Delay excesivo: {n.postpone} min antes de notificar "
+            f"(recomendado ≤ {_EXCESSIVE_POSTPONE_MINUTES} min)"
         )
-        return {"active": active, "paused": paused}
 
-    # ── helpers ──────────────────────────────────────────────────────────────
+    if _GENERIC_NAME_PATTERN.match(n.name):
+        issues.append(f"Nombre genérico '{n.name}' — dificulta la identificación rápida")
 
-    def _parse(self, n: dict) -> dict:
-        active_raw    = str(n.get("active",       "1")).lower()
-        last_trigger  = str(n.get("lasttrigger",  "")).strip()
-        trigger_count = int(n.get("tcount",        0) or 0)
-        recipient     = str(n.get("toaddress",     "")).strip()
+    n.issues = issues
+    return n
 
-        is_paused = active_raw in ("0", "false", "no", "")
 
-        # Clasificación de riesgo
-        issues = []
-        if is_paused:
-            issues.append("Notificación desactivada — no generará alertas")
-        if trigger_count == 0:
-            issues.append("Sin sensores vinculados (plantilla huérfana)")
-        if not recipient:
-            issues.append("Sin destinatario configurado")
+def audit_notifications(raw_notifications: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Audita las plantillas de notificación de PRTG.
 
-        risk_level = "OK"
-        if issues:
-            risk_level = "CRÍTICO" if is_paused else "ALTO"
+    Args:
+        raw_notifications: Lista de dicts crudos del endpoint
+            /api/table.json?content=notifications
 
-        return {
-            "id":            n.get("objid",      ""),
-            "name":          n.get("name",       ""),
-            "active":        "No" if is_paused else "Sí",
-            "is_paused":     is_paused,
-            "last_trigger":  last_trigger or "Nunca",
-            "trigger_count": trigger_count,
-            "recipient":     recipient or "(no definido)",
-            "risk_level":    risk_level,
-            "issue":         " | ".join(issues) if issues else "",
+    Returns:
+        Dict con claves:
+            notifications  — lista serializada con issues por plantilla
+            summary        — contadores globales
+            findings       — solo plantillas con al menos 1 problema
+            score          — % de plantillas sin problemas (0-100)
+    """
+    if not raw_notifications:
+        logger.warning("audit_notifications: lista vacía recibida")
+        return {"notifications": [], "summary": {}, "findings": [], "score": 100}
+
+    records = [_parse_notification(n) for n in raw_notifications]
+    records = [_detect_issues(n) for n in records]
+
+    summary = {
+        "total": len(records),
+        "active": sum(1 for n in records if n.active),
+        "inactive": sum(1 for n in records if not n.active),
+        "orphans": sum(1 for n in records if n.is_orphan),
+        "no_delivery_method": sum(1 for n in records if not n.has_delivery_method),
+        "with_email": sum(1 for n in records if n.has_email),
+        "with_sms": sum(1 for n in records if n.has_sms),
+        "with_exec": sum(1 for n in records if n.has_exec),
+        "excessive_delay": sum(
+            1 for n in records if n.postpone > _EXCESSIVE_POSTPONE_MINUTES
+        ),
+    }
+
+    findings = [
+        {
+            "objid": n.objid,
+            "name": n.name,
+            "active": n.active,
+            "triggers_count": n.triggers_count,
+            "has_email": n.has_email,
+            "has_sms": n.has_sms,
+            "postpone_min": n.postpone,
+            "issues": n.issues,
         }
+        for n in records
+        if n.issues
+    ]
+
+    healthy = sum(1 for n in records if not n.issues)
+    score = round((healthy / len(records)) * 100) if records else 100
+
+    logger.info(
+        "audit_notifications completado: %d plantillas, %d con problemas, score=%d",
+        len(records), len(findings), score,
+    )
+
+    return {
+        "notifications": [
+            {
+                "objid": n.objid,
+                "name": n.name,
+                "active": n.active,
+                "has_email": n.has_email,
+                "has_sms": n.has_sms,
+                "has_exec": n.has_exec,
+                "triggers_count": n.triggers_count,
+                "postpone_min": n.postpone,
+                "schedule": n.schedule,
+                "issues": n.issues,
+            }
+            for n in records
+        ],
+        "summary": summary,
+        "findings": findings,
+        "score": score,
+    }
