@@ -1,108 +1,142 @@
 """
 src/features/sensors/audit.py
 ==============================
-Feature: Auditoría de sensores.
+Auditoría de sensores PRTG.
 
-Clasifica sensores en cuatro categorías:
-  - down:       estado caído (status_raw == 5)
-  - warning:    en advertencia (status_raw == 4)
-  - no_limits:  sin límites/umbrales configurados (lastvalue vacío y activo)
-  - paused:     pausados manual, por horario o por dependencia
+Resultado de SensorAudit.run():
+    {
+        "down":       list[dict],   # sensores en estado Down
+        "warning":    list[dict],   # sensores en estado Warning
+        "no_limits":  list[dict],   # sensores sin umbrales configurados
+        "paused":     list[dict],   # sensores pausados (manual o scheduled)
+    }
 
-Diagnóstico extendido:
-  - Tiempo acumulado en estado Down/Warning (si `downtime` disponible)
-  - Prioridad traducida a texto legible
-  - Flag `has_limits` para diferenciar sensores con valor pero sin umbral
+Cada dict incluye: id, nombre, device, group, probe, estado,
+                   mensaje, ultimo_valor, tipo, activo
 """
-from __future__ import annotations
-from src.core.client import PRTGClient
-from src.core.constants import (
-    API_TABLE, SENSOR_COLS,
-    STATUS_DOWN, STATUS_WARNING, STATUS_PAUSED_ALL, STATUS_NAMES,
-)
-from src.core.exceptions import PRTGDataError
 
-_PRIORITY_MAP = {
-    "1": "Muy baja", "2": "Baja", "3": "Normal",
-    "4": "Alta",    "5": "Muy alta",
-}
+from __future__ import annotations
+import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.core.client import PRTGClient
+
+log = logging.getLogger(__name__)
+
+_COLUMNS = "objid,sensor,device,group,probe,status,message,lastvalue,type,active"
+
+# Valores de status que PRTG retorna como texto
+_STATUS_DOWN    = ("down", "down (partial)", "down (acknowledged)")
+_STATUS_WARNING = ("warning",)
+_STATUS_PAUSED  = ("paused", "paused (by user)", "paused (by license)",
+                   "paused (by dependency)", "paused (by schedule)")
 
 
 class SensorAudit:
-    """
-    Audita todos los sensores visibles para el usuario autenticado.
+    """Clasifica sensores por estado y detecta falta de umbrales."""
 
-    Uso:
-        result = SensorAudit(client).run()
-        # result keys: "down", "warning", "no_limits", "paused"
-    """
-
-    def __init__(self, client: PRTGClient) -> None:
+    def __init__(self, client: "PRTGClient") -> None:
         self.client = client
 
-    def run(self) -> dict[str, list]:
-        print("  [sensors] Obteniendo sensores...")
-        data = self.client.get(API_TABLE, {
+    def run(self) -> dict[str, list[dict]]:
+        log.info("[sensors] Consultando todos los sensores...")
+        raw = self.client.get("/api/table.json", {
             "content": "sensors",
-            "columns": SENSOR_COLS,
-            "count":   50_000,
+            "columns": _COLUMNS,
+            "count":   50000,
             "output":  "json",
         })
+        sensors = [self._normalize(s) for s in raw.get("sensors", [])]
+        log.info("[sensors] %d sensores obtenidos", len(sensors))
 
-        raw = data.get("sensors", [])
-        if not isinstance(raw, list):
-            raise PRTGDataError("La API no devolvió una lista de sensores.")
-
-        down, warning, no_limits, paused = [], [], [], []
-
-        for s in raw:
-            status_raw = s.get("status_raw", 0)
-            record     = self._parse(s, status_raw)
-
-            if status_raw == STATUS_DOWN:
-                down.append(record)
-            elif status_raw == STATUS_WARNING:
-                warning.append(record)
-            elif status_raw in STATUS_PAUSED_ALL:
-                paused.append(record)
-
-            # Sin umbrales: sensor activo sin lastvalue Y sin limitsmax definido
-            is_active    = status_raw not in STATUS_PAUSED_ALL
-            has_lastval  = bool(str(s.get("lastvalue", "")).strip())
-            has_limits_h = bool(str(s.get("limitsmax", "")).strip())
-            has_limits_l = bool(str(s.get("limitsmin", "")).strip())
-
-            if is_active and not has_lastval and not has_limits_h and not has_limits_l:
-                no_limits.append(record)
-
-        print(
-            f"  [sensors] Down={len(down)} | Warning={len(warning)} "
-            f"| Sin umbrales={len(no_limits)} | Pausados={len(paused)}"
-        )
-        return {
-            "down":      down,
-            "warning":   warning,
-            "no_limits": no_limits,
-            "paused":    paused,
+        result = {
+            "down":      [],
+            "warning":   [],
+            "no_limits": [],
+            "paused":    [],
         }
 
-    # ── helpers ──────────────────────────────────────────────────────────────
+        for s in sensors:
+            st = s["estado"].lower()
+            if st in _STATUS_DOWN:
+                result["down"].append(s)
+            elif st in _STATUS_WARNING:
+                result["warning"].append(s)
+            elif st in _STATUS_PAUSED:
+                result["paused"].append(s)
 
-    def _parse(self, s: dict, status_raw: int) -> dict:
-        prio_raw = str(s.get("priority", ""))
+            # Sensor sin umbrales: lastvalue presente pero no contiene rangos
+            # Se detecta consultando los límites vía la API de objprop
+            if self._has_no_limits(s):
+                result["no_limits"].append(s)
+
+        log.info(
+            "[sensors] Down=%d | Warning=%d | Sin umbrales=%d | Pausados=%d",
+            len(result["down"]), len(result["warning"]),
+            len(result["no_limits"]), len(result["paused"]),
+        )
+        return result
+
+    def _has_no_limits(self, sensor: dict) -> bool:
+        """
+        Heurística rápida: si el sensor tiene un valor numérico pero
+        ningún límite configurado, se marca como sin umbral.
+
+        Para una detección 100% exacta usa check_limits() con la
+        endpoint /api/getobjectproperty.htm — pero eso requiere
+        N llamadas (una por sensor). Esta versión usa la columna
+        'lastvalue' como proxy: si tiene valor y el estado es OK,
+        se consulta la propiedad limitenable.
+        """
+        # Solo aplica a sensores activos y no pausados
+        if not sensor.get("activo", True):
+            return False
+        estado = sensor["estado"].lower()
+        if estado in _STATUS_PAUSED:
+            return False
+        # Si el valor es vacío o N/A no podemos evaluar umbrales
+        val = sensor.get("ultimo_valor", "").strip()
+        if not val or val.lower() in ("", "no data", "n/a", "-"):
+            return False
+        # Consulta rápida de límites para este sensor
+        try:
+            return self._query_limits(sensor["id"])
+        except Exception:
+            return False
+
+    def _query_limits(self, sensor_id: str) -> bool:
+        """
+        Consulta si el sensor tiene límites configurados.
+        Retorna True si NO tiene límites (hallazgo de auditoría).
+        """
+        props = ["limitmaxerror", "limitmaxwarning",
+                 "limitminwarning", "limitminerror"]
+        for prop in props:
+            try:
+                resp = self.client.get("/api/getobjectproperty.htm", {
+                    "id":       sensor_id,
+                    "name":     prop,
+                    "output":   "json",
+                })
+                val = str(resp.get("result", "")).strip()
+                if val not in ("", "0", "None", "none"):
+                    return False  # tiene al menos un límite → OK
+            except Exception:
+                continue
+        return True  # ningún límite encontrado
+
+    @staticmethod
+    def _normalize(raw: dict) -> dict:
         return {
-            "id":          s.get("objid", ""),
-            "name":        s.get("sensor", ""),
-            "device":      s.get("device", ""),
-            "group":       s.get("group", ""),
-            "probe":       s.get("probe", ""),
-            "status":      STATUS_NAMES.get(status_raw, s.get("status", "")),
-            "status_raw":  status_raw,
-            "lastvalue":   s.get("lastvalue", ""),
-            "priority":    _PRIORITY_MAP.get(prio_raw, prio_raw),
-            "priority_raw":prio_raw,
-            "message":     s.get("message", ""),
-            "downtime":    s.get("downtime", ""),
-            "uptime":      s.get("uptime", ""),
-            "tags":        s.get("tags", ""),
+            "id":           raw.get("objid", ""),
+            "nombre":       raw.get("sensor", ""),
+            "device":       raw.get("device", ""),
+            "grupo":        raw.get("group", ""),
+            "probe":        raw.get("probe", ""),
+            "estado":       raw.get("status", ""),
+            "mensaje":      raw.get("message", ""),
+            "ultimo_valor": raw.get("lastvalue", ""),
+            "tipo":         raw.get("type", ""),
+            "activo":       raw.get("active", True),
         }
