@@ -1167,6 +1167,62 @@
     </div>
   </div>
 
+  <!-- MODAL DE REMEDIACIÓN Y CONFIGURACIÓN DE UMBRALES -->
+  <div class="modal-backdrop hidden" id="remedyModal" role="dialog" aria-modal="true" aria-labelledby="remedyTitle">
+    <div class="modal">
+      <h2 id="remedyTitle">Remediación Remota — Configurar Umbrales</h2>
+      <div class="form-grid">
+        <div style="font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: var(--space-1);">
+          Sensor: <span id="rSensorName" style="color: var(--color-text); font-weight: 700;"></span>
+        </div>
+        
+        <label class="field">Canal de Sensor a Monitorear
+          <select class="inp" id="rChannelSelect" aria-label="Seleccionar canal de sensor">
+            <option value="">Cargando canales...</option>
+          </select>
+        </label>
+        
+        <label class="field">Tipo de Métrica / Buenas Prácticas
+          <select class="inp" id="rMetricType" aria-label="Seleccionar tipo de métrica">
+            <option value="custom">Personalizado (Sin plantilla)</option>
+            <option value="cpu">CPU Load (Límite Máximo: 80% / 90%)</option>
+            <option value="ram">RAM / Memory (Límite Máximo: 85% / 95%)</option>
+            <option value="disk">Disk Free Space (Límite Mínimo: 15% / 5%)</option>
+            <option value="ping">Ping Latency / Red (Límite Máximo: 150ms / 300ms)</option>
+          </select>
+        </label>
+        
+        <div style="background: var(--color-primary-glow); border-left: 3px solid var(--color-primary); padding: var(--space-3); border-radius: var(--radius-md);">
+          <p id="rSuggestionText" style="font-size: var(--text-xs); color: var(--color-text); margin: 0; line-height: 1.4;">
+            Define límites de alerta personalizados para este canal.
+          </p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+          <label class="field">Límite Mínimo de Warning
+            <input class="inp" id="rMinWarning" type="number" placeholder="Ej: 15 (Vacío si no aplica)">
+          </label>
+          <label class="field">Límite Mínimo de Error
+            <input class="inp" id="rMinError" type="number" placeholder="Ej: 5 (Dejar vacío si no aplica)">
+          </label>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+          <label class="field">Límite Máximo de Warning
+            <input class="inp" id="rMaxWarning" type="number" placeholder="Ej: 80 (Dejar vacío si no aplica)">
+          </label>
+          <label class="field">Límite Máximo de Error
+            <input class="inp" id="rMaxError" type="number" placeholder="Ej: 90 (Dejar vacío si no aplica)">
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="remedyCancel">Cancelar</button>
+        <button class="btn btn-primary" id="remedySave"><i data-lucide="sliders-horizontal"></i> Aplicar Umbrales</button>
+      </div>
+    </div>
+  </div>
+
   <!-- LOADER SPINNER MODAL -->
   <div class="loader-backdrop hidden" id="loadingScreen">
     <div class="spinner"></div>
@@ -1342,11 +1398,12 @@
                   <th>Estado</th>
                   <th>Último Valor</th>
                   <th>Mensaje / Alerta</th>
+                  <th style="width: 130px; text-align: center;">Acciones</th>
                 </tr>
               </thead>
               <tbody id="sensorTable">
                 <tr>
-                  <td colspan="6">
+                  <td colspan="7">
                     <div class="empty">
                       <i data-lucide="alert-circle" size="32"></i>
                       <span>No se han cargado datos. Selecciona una instancia y haz clic en Auditar o Carga los datos Demo.</span>
@@ -1377,11 +1434,12 @@
                     <th>Grupo</th>
                     <th>Último Valor</th>
                     <th>Limit mode</th>
+                    <th style="width: 100px; text-align: center;">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="limitsTable">
                   <tr>
-                    <td colspan="5">
+                    <td colspan="6">
                       <div class="empty">
                         <i data-lucide="shield-check" size="24" style="color:var(--color-success)"></i>
                         <span>Sin hallazgos</span>
@@ -1730,13 +1788,20 @@ python server.py
       
       const tbody = document.getElementById('sensorTable');
       if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><i data-lucide="search-x"></i>Sin sensores coincidentes</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><i data-lucide="search-x"></i>Sin sensores coincidentes</div></td></tr>`;
       } else {
         tbody.innerHTML = rows.map(s => {
           let limitsDesc = "";
           if (s.limits) {
             limitsDesc = `<br/><span style="font-size:10px; color:var(--color-text-faint); font-weight:700">LÍMITES ACTIVOS: ${s.limits.map(l => esc(l.Canal)).join(', ')}</span>`;
           }
+          
+          const isPaused = s.status === 'paused';
+          const pauseIcon = isPaused ? 'play' : 'pause';
+          const pauseTitle = isPaused ? 'Reanudar Sensor' : 'Pausar Sensor';
+          const pauseClass = isPaused ? 'btn-success' : 'btn-ghost';
+          const pauseAction = isPaused ? 0 : 1;
+          
           return `<tr>
             <td><strong>${esc(s.name)}</strong>${limitsDesc}</td>
             <td>${esc(s.device)}</td>
@@ -1744,6 +1809,16 @@ python server.py
             <td>${getBadge(s.status)}</td>
             <td><code style="font-family:var(--font-mono)">${esc(s.lastvalue)}</code></td>
             <td style="font-size:var(--text-xs); color:${s.status==='down'?'var(--color-error)':s.status==='warning'?'var(--color-warning)':'var(--color-text-muted)'}">${esc(s.message)}</td>
+            <td style="text-align: center;">
+              <div style="display: inline-flex; gap: var(--space-1); justify-content: center; width: 100%;">
+                <button class="btn btn-secondary btn-sm" onclick="openRemediationModal(${s.id}, '${esc(s.name)}')" title="Configurar Umbrales" style="min-height: 30px; padding: 0 var(--space-2);">
+                  <i data-lucide="sliders-horizontal" size="14"></i>
+                </button>
+                <button class="btn ${pauseClass} btn-sm" onclick="toggleSensorPause(${s.id}, ${pauseAction})" title="${pauseTitle}" style="min-height: 30px; padding: 0 var(--space-2);">
+                  <i data-lucide="${pauseIcon}" size="14"></i>
+                </button>
+              </div>
+            </td>
           </tr>`;
         }).join('');
       }
@@ -1753,7 +1828,7 @@ python server.py
     function renderLimits() {
       const tbody = document.getElementById('limitsTable');
       if (state.noLimits.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><i data-lucide="check-circle-2" style="color:var(--color-success)"></i><span>Todos los sensores activos cuentan con umbrales configurados.</span></div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><i data-lucide="check-circle-2" style="color:var(--color-success)"></i><span>Todos los sensores activos cuentan con umbrales configurados.</span></div></td></tr>`;
       } else {
         tbody.innerHTML = state.noLimits.map(s => `<tr>
           <td><strong>${esc(s.name)}</strong></td>
@@ -1761,6 +1836,11 @@ python server.py
           <td><span style="color:var(--color-text-muted)">${esc(s.group)}</span></td>
           <td><code style="font-family:var(--font-mono)">${esc(s.lastvalue)}</code></td>
           <td><span class="badge badge-warning">limitmode = ${esc(s.limitmode)}</span></td>
+          <td style="text-align: center;">
+            <button class="btn btn-secondary btn-sm" onclick="openRemediationModal(${s.id}, '${esc(s.name)}')" title="Configurar Umbrales" style="min-height: 30px; padding: 0 var(--space-2); gap: 4px;">
+              <i data-lucide="sliders-horizontal" size="12"></i> Remediar
+            </button>
+          </td>
         </tr>`).join('');
       }
       if (window.lucide) lucide.createIcons();
@@ -2162,6 +2242,329 @@ python server.py
       renderUsers();
       renderNotifications();
       renderChecklist();
+    }
+
+    /* =========================================================================
+       9. GESTIÓN DE REMEDIACIÓN Y ESCRITURA EN PRTG (Umbrales y Pausas)
+       ========================================================================= */
+    let remedySensorId = null;
+
+    async function openRemediationModal(sensorId, sensorName) {
+      remedySensorId = sensorId;
+      document.getElementById('rSensorName').textContent = sensorName;
+      
+      const select = document.getElementById('rChannelSelect');
+      select.innerHTML = '<option value="">Cargando canales...</option>';
+      select.disabled = true;
+      
+      // Mostrar el modal
+      document.getElementById('remedyModal').classList.remove('hidden');
+      
+      // Auto-detectar recomendación inicial por el nombre del sensor
+      const nameLower = sensorName.toLowerCase();
+      let defaultMetric = "custom";
+      if (nameLower.includes("cpu") || nameLower.includes("procesador")) {
+        defaultMetric = "cpu";
+      } else if (nameLower.includes("memoria") || nameLower.includes("ram") || nameLower.includes("memory")) {
+        defaultMetric = "ram";
+      } else if (nameLower.includes("disco") || nameLower.includes("space") || nameLower.includes("free") || nameLower.includes("disco c")) {
+        defaultMetric = "disk";
+      } else if (nameLower.includes("ping") || nameLower.includes("latencia") || nameLower.includes("icmp")) {
+        defaultMetric = "ping";
+      }
+      
+      document.getElementById('rMetricType').value = defaultMetric;
+      applyThresholdSuggestion(defaultMetric);
+      
+      // Cargar canales
+      const isDemo = document.getElementById("sidebarDot").classList.contains("demo");
+      if (isDemo) {
+        // En modo demo, simulamos canales según el tipo de sensor
+        setTimeout(() => {
+          let demoChannels = [];
+          if (defaultMetric === "cpu") {
+            demoChannels = [{ objid: "0", name: "Total CPU Load" }, { objid: "1", name: "Core 0" }];
+          } else if (defaultMetric === "ram") {
+            demoChannels = [{ objid: "0", name: "Percent available memory" }, { objid: "1", name: "Available Memory (Bytes)" }];
+          } else if (defaultMetric === "disk") {
+            demoChannels = [{ objid: "0", name: "Percent Free Space" }, { objid: "1", name: "Free Space (Bytes)" }];
+          } else if (defaultMetric === "ping") {
+            demoChannels = [{ objid: "0", name: "Ping Time" }, { objid: "1", name: "Packet Loss" }];
+          } else {
+            demoChannels = [{ objid: "0", name: "Primary Channel" }, { objid: "1", name: "Traffic In" }, { objid: "2", name: "Traffic Out" }];
+          }
+          
+          select.innerHTML = demoChannels.map(ch => `<option value="${ch.objid}">${esc(ch.name)}</option>`).join('');
+          select.disabled = false;
+        }, 300);
+      } else {
+        // Hacemos una llamada real a /api/channels
+        try {
+          const inst = instances[activeIdx];
+          const host = document.getElementById('hostInput').value.trim() || (inst?.host || '');
+          const username = document.getElementById('userInput').value.trim() || (inst?.user || 'e.siapti2');
+          const secret = document.getElementById('secretInput').value.trim() || (inst?.secret || '');
+          
+          if (!host || !secret) {
+            throw new Error("No hay credenciales activas. Conéctate primero a una instancia real.");
+          }
+          
+          const isPasshash = /^\d+$/.test(secret);
+          const payload = {
+            host,
+            username,
+            sensor_id: sensorId
+          };
+          if (isPasshash) {
+            payload.passhash = secret;
+          } else {
+            payload.password = secret;
+          }
+          
+          const response = await fetch('/api/channels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) throw new Error("Error en servidor al obtener canales");
+          const data = await response.json();
+          if (!data.success) throw new Error(data.error || "No se cargaron los canales");
+          
+          if (data.channels && data.channels.length > 0) {
+            select.innerHTML = data.channels.map(ch => `<option value="${ch.objid}">${esc(ch.name)}</option>`).join('');
+            select.disabled = false;
+          } else {
+            select.innerHTML = '<option value="">Sin canales disponibles</option>';
+          }
+        } catch (e) {
+          console.error(e);
+          showToast(`Error de canales: ${e.message}`, "error");
+          select.innerHTML = '<option value="">Error al cargar canales (Revisa credenciales)</option>';
+        }
+      }
+    }
+
+    function applyThresholdSuggestion(metricType) {
+      const minErr = document.getElementById('rMinError');
+      const minWarn = document.getElementById('rMinWarning');
+      const maxWarn = document.getElementById('rMaxWarning');
+      const maxErr = document.getElementById('rMaxError');
+      const sugText = document.getElementById('rSuggestionText');
+      
+      // Limpiar campos primero
+      minErr.value = "";
+      minWarn.value = "";
+      maxWarn.value = "";
+      maxErr.value = "";
+      
+      switch (metricType) {
+        case 'cpu':
+          maxWarn.value = "80";
+          maxErr.value = "90";
+          sugText.textContent = "Buenas prácticas de Paessler: Alertas de advertencia al 80% y error al 90% para prevenir y diagnosticar cuellos de botella en el procesamiento.";
+          break;
+        case 'ram':
+          maxWarn.value = "85";
+          maxErr.value = "95";
+          sugText.textContent = "Buenas prácticas de Paessler: Alerta Warning al 85% y Error al 95% para evitar fallas críticas por falta de memoria (Out-Of-Memory).";
+          break;
+        case 'disk':
+          minWarn.value = "15";
+          minErr.value = "5";
+          sugText.textContent = "Buenas prácticas de Paessler: Monitoreo de espacio libre. Alertas de advertencia si el espacio libre cae por debajo del 15% y error por debajo del 5% para garantizar almacenamiento operativo.";
+          break;
+        case 'ping':
+          maxWarn.value = "150";
+          maxErr.value = "300";
+          sugText.textContent = "Buenas prácticas de Paessler: Alerta de warning a 150 ms por latencia alta y de error a 300 ms (o ante cualquier pérdida persistente de paquetes).";
+          break;
+        default:
+          sugText.textContent = "Define límites de alerta personalizados para este canal según las necesidades específicas de tu red.";
+          break;
+      }
+    }
+
+    document.getElementById('rMetricType').addEventListener('change', (e) => {
+      applyThresholdSuggestion(e.target.value);
+    });
+
+    document.getElementById('remedyCancel').addEventListener('click', () => {
+      document.getElementById('remedyModal').classList.add('hidden');
+      remedySensorId = null;
+    });
+
+    document.getElementById('remedySave').addEventListener('click', async () => {
+      const channelSelect = document.getElementById('rChannelSelect');
+      const subid = channelSelect.value;
+      const channelName = channelSelect.options[channelSelect.selectedIndex]?.text || "Canal";
+      
+      if (!remedySensorId || !subid) {
+        alert("Selecciona un canal válido.");
+        return;
+      }
+      
+      const payload = {
+        sensor_id: remedySensorId,
+        subid: subid,
+        limitmode: "1", // Activar límites
+        limitminerror: document.getElementById('rMinError').value,
+        limitminwarning: document.getElementById('rMinWarning').value,
+        limitmaxwarning: document.getElementById('rMaxWarning').value,
+        limitmaxerror: document.getElementById('rMaxError').value
+      };
+      
+      const isDemo = document.getElementById("sidebarDot").classList.contains("demo");
+      if (isDemo) {
+        // SIMULACIÓN EN MODO DEMO
+        // 1. Añadir el límite activo en el sensor dentro del listado de sensores
+        const sensor = state.sensors.find(s => s.id === remedySensorId);
+        if (sensor) {
+          if (!sensor.limits) sensor.limits = [];
+          
+          // Reemplazar o insertar el límite
+          const idx = sensor.limits.findIndex(l => l.Canal === channelName);
+          const limData = {
+            "Canal": channelName,
+            "Limites_Activos": "Sí",
+            "Min_Error": payload.limitminerror,
+            "Min_Warning": payload.limitminwarning,
+            "Max_Error": payload.limitmaxerror,
+            "Max_Warning": payload.limitmaxwarning
+          };
+          if (idx >= 0) {
+            sensor.limits[idx] = limData;
+          } else {
+            sensor.limits.push(limData);
+          }
+        }
+        
+        // 2. Remover del listado de sensores sin límites
+        state.noLimits = state.noLimits.filter(s => s.id !== remedySensorId);
+        
+        renderAll();
+        document.getElementById('remedyModal').classList.add('hidden');
+        showToast("Límites aplicados correctamente (Simulado en Modo Demo).");
+      } else {
+        // APLICACIÓN REAL EN PRTG
+        const screen = document.getElementById("loadingScreen");
+        const lText = document.getElementById("loaderText");
+        const lSub = document.getElementById("loaderSubtext");
+        
+        screen.classList.remove("hidden");
+        lText.textContent = "Aplicando límites en PRTG...";
+        lSub.textContent = `Estableciendo propiedades en canal '${channelName}'...`;
+        
+        try {
+          const inst = instances[activeIdx];
+          const host = document.getElementById('hostInput').value.trim() || (inst?.host || '');
+          const username = document.getElementById('userInput').value.trim() || (inst?.user || 'e.siapti2');
+          const secret = document.getElementById('secretInput').value.trim() || (inst?.secret || '');
+          
+          if (!host || !secret) {
+            throw new Error("No hay credenciales activas.");
+          }
+          
+          const isPasshash = /^\d+$/.test(secret);
+          payload.host = host;
+          payload.username = username;
+          if (isPasshash) {
+            payload.passhash = secret;
+          } else {
+            payload.password = secret;
+          }
+          
+          const response = await fetch('/api/set_limits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) throw new Error("Error en el servidor al guardar límites.");
+          const resData = await response.json();
+          if (!resData.success) throw new Error(resData.error || "No se pudieron aplicar los límites.");
+          
+          document.getElementById('remedyModal').classList.add('hidden');
+          showToast(`¡Límites aplicados con éxito para '${channelName}'!`);
+          
+          // Re-auditar para cargar los valores reales nuevos automáticamente
+          setTimeout(auditPrtgReal, 800);
+        } catch (e) {
+          console.error(e);
+          alert(`Error al guardar límites:\n\n${e.message}`);
+        } finally {
+          screen.classList.add("hidden");
+        }
+      }
+    });
+
+    async function toggleSensorPause(sensorId, action) {
+      const actionLabel = action === 1 ? "pausar" : "reanudar";
+      
+      const isDemo = document.getElementById("sidebarDot").classList.contains("demo");
+      if (isDemo) {
+        // SIMULACIÓN MODO DEMO
+        const sensor = state.sensors.find(s => s.id === sensorId);
+        if (sensor) {
+          sensor.status = action === 1 ? 'paused' : 'up';
+          sensor.message = action === 1 ? 'Pausado por el usuario (Simulado)' : 'OK';
+        }
+        renderAll();
+        showToast(`Sensor ${action === 1 ? 'pausado' : 'reanudado'} con éxito (Demo).`);
+      } else {
+        // EJECUCIÓN REAL EN PRTG
+        const screen = document.getElementById("loadingScreen");
+        const lText = document.getElementById("loaderText");
+        const lSub = document.getElementById("loaderSubtext");
+        
+        screen.classList.remove("hidden");
+        lText.textContent = `${action === 1 ? 'Pausando' : 'Reanudando'} sensor en PRTG...`;
+        lSub.textContent = `Sensor ID: ${sensorId}...`;
+        
+        try {
+          const inst = instances[activeIdx];
+          const host = document.getElementById('hostInput').value.trim() || (inst?.host || '');
+          const username = document.getElementById('userInput').value.trim() || (inst?.user || 'e.siapti2');
+          const secret = document.getElementById('secretInput').value.trim() || (inst?.secret || '');
+          
+          if (!host || !secret) {
+            throw new Error("No hay credenciales activas.");
+          }
+          
+          const isPasshash = /^\d+$/.test(secret);
+          const payload = {
+            host,
+            username,
+            sensor_id: sensorId,
+            action: String(action)
+          };
+          if (isPasshash) {
+            payload.passhash = secret;
+          } else {
+            payload.password = secret;
+          }
+          
+          const response = await fetch('/api/pause', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+          const resData = await response.json();
+          if (!resData.success) throw new Error(resData.error || `No se pudo ${actionLabel} el sensor.`);
+          
+          showToast(`¡Sensor ${action === 1 ? 'pausado' : 'reanudado'} correctamente!`);
+          
+          // Re-auditar para refrescar la lista
+          setTimeout(auditPrtgReal, 800);
+        } catch (e) {
+          console.error(e);
+          alert(`Error al intentar ${actionLabel} el sensor:\n\n${e.message}`);
+        } finally {
+          screen.classList.add("hidden");
+        }
+      }
     }
 
     // Inicializar todo

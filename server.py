@@ -35,30 +35,40 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed_path = urllib.parse.urlparse(self.path)
-        if parsed_path.path == "/api/audit":
-            # Leer el cuerpo de la petición POST
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            
-            try:
-                params = json.loads(post_data.decode('utf-8'))
-            except Exception as e:
-                self.send_error_response(400, f"JSON inválido: {str(e)}")
-                return
+        path = parsed_path.path
+        
+        # Leer el cuerpo de la petición POST
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            params = json.loads(post_data.decode('utf-8'))
+        except Exception as e:
+            self.send_error_response(400, f"JSON inválido: {str(e)}")
+            return
 
-            host = params.get("host")
-            username = params.get("username")
-            passhash = params.get("passhash")
-            password = params.get("password")
+        host = params.get("host")
+        username = params.get("username")
+        passhash = params.get("passhash")
+        password = params.get("password")
+
+        if not host or not username or (not passhash and not password):
+            self.send_error_response(400, "Faltan parámetros obligatorios de conexión: host, username y (passhash o password)")
+            return
+
+        # Construir credenciales base
+        auth_params = {"username": username}
+        if passhash:
+            auth_params["passhash"] = passhash
+        elif password:
+            auth_params["password"] = password
+
+        if path == "/api/audit":
             group_id = params.get("group_id")
             if group_id is not None:
                 group_id = str(group_id).strip()
             else:
                 group_id = ""
-
-            if not host or not username or (not passhash and not password):
-                self.send_error_response(400, "Faltan parámetros obligatorios: host, username y (passhash o password)")
-                return
 
             print(f"[*] Iniciando auditoría asíncrona para: {host} (Usuario: {username}, Grupo ID: {group_id if group_id else 'General/Global (Toda la instancia)'})")
             
@@ -85,6 +95,73 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
                 import traceback
                 traceback.print_exc()
                 self.send_error_response(500, f"Error durante la auditoría: {str(e)}")
+
+        elif path == "/api/channels":
+            sensor_id = params.get("sensor_id")
+            if not sensor_id:
+                self.send_error_response(400, "Falta el parámetro obligatorio: sensor_id")
+                return
+
+            print(f"[*] Obteniendo canales para el sensor {sensor_id} en {host}...")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                channels = loop.run_until_complete(
+                    self.ejecutar_get_channels_async(host, auth_params, sensor_id)
+                )
+                loop.close()
+                self.send_json_response({"success": True, "channels": channels})
+            except Exception as e:
+                self.send_error_response(500, f"Error al obtener canales: {str(e)}")
+
+        elif path == "/api/set_limits":
+            sensor_id = params.get("sensor_id")
+            subid = params.get("subid")
+            limitmode = params.get("limitmode", "1")
+            
+            # Límites a establecer
+            limitminerror = params.get("limitminerror")
+            limitminwarning = params.get("limitminwarning")
+            limitmaxerror = params.get("limitmaxerror")
+            limitmaxwarning = params.get("limitmaxwarning")
+
+            if not sensor_id or not subid:
+                self.send_error_response(400, "Faltan parámetros obligatorios: sensor_id y subid (canal)")
+                return
+
+            print(f"[*] Aplicando límites en {host} para sensor {sensor_id}, canal {subid}...")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    self.ejecutar_set_limits_async(host, auth_params, sensor_id, subid, limitmode, 
+                                                 limitminerror, limitminwarning, limitmaxerror, limitmaxwarning)
+                )
+                loop.close()
+                self.send_json_response({"success": True, "message": "Límites aplicados correctamente en PRTG"})
+            except Exception as e:
+                self.send_error_response(500, f"Error al aplicar límites: {str(e)}")
+
+        elif path == "/api/pause":
+            sensor_id = params.get("sensor_id")
+            action = params.get("action")  # '1' = pausar, '0' = reanudar
+
+            if not sensor_id or action is None:
+                self.send_error_response(400, "Faltan parámetros obligatorios: sensor_id y action")
+                return
+
+            act_label = "pausar" if str(action) == "1" else "reanudar"
+            print(f"[*] Solicitando {act_label} para el sensor {sensor_id} en {host}...")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    self.ejecutar_pause_async(host, auth_params, sensor_id, action)
+                )
+                loop.close()
+                self.send_json_response({"success": True, "message": f"Sensor {act_label}do correctamente"})
+            except Exception as e:
+                self.send_error_response(500, f"Error al {act_label} sensor: {str(e)}")
         else:
             self.send_error(404, "API endpoint no encontrado")
 
@@ -469,6 +546,66 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
                     lims_desc
                 ])
         print(f"[+] Historial físico guardado localmente como: {filepath}")
+
+    async def ejecutar_get_channels_async(self, host, auth_params, sensor_id):
+        url_base = f"{host.rstrip('/')}/api/table.json"
+        params = {
+            "content": "channels",
+            "output": "json",
+            "id": sensor_id,
+            "columns": "name,objid",
+            **auth_params
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url_base, params=params, ssl=False) as resp:
+                if resp.status == 200:
+                    datos = await resp.json()
+                    return datos.get("channels", [])
+                else:
+                    raise Exception(f"HTTP {resp.status}")
+
+    async def ejecutar_set_limits_async(self, host, auth_params, sensor_id, subid, limitmode,
+                                       limitminerror, limitminwarning, limitmaxerror, limitmaxwarning):
+        url_set = f"{host.rstrip('/')}/api/setobjectproperty.htm"
+        
+        # Preparamos las llamadas
+        propiedades = {
+            "limitmode": limitmode
+        }
+        if limitminerror is not None and str(limitminerror).strip() != "": propiedades["limitminerror"] = limitminerror
+        if limitminwarning is not None and str(limitminwarning).strip() != "": propiedades["limitminwarning"] = limitminwarning
+        if limitmaxerror is not None and str(limitmaxerror).strip() != "": propiedades["limitmaxerror"] = limitmaxerror
+        if limitmaxwarning is not None and str(limitmaxwarning).strip() != "": propiedades["limitmaxwarning"] = limitmaxwarning
+
+        async with aiohttp.ClientSession() as session:
+            # Creación de tareas concurrentes para aplicar cada propiedad
+            async def set_prop(name, val):
+                params = {
+                    "id": sensor_id,
+                    "subtype": "channel",
+                    "subid": subid,
+                    "name": name,
+                    "value": val,
+                    **auth_params
+                }
+                async with session.get(url_set, params=params, ssl=False) as resp:
+                    if resp.status != 200:
+                        raise Exception(f"Error aplicando {name}: HTTP {resp.status}")
+
+            tareas = [set_prop(k, v) for k, v in propiedades.items()]
+            await asyncio.gather(*tareas)
+
+    async def ejecutar_pause_async(self, host, auth_params, sensor_id, action):
+        url_pause = f"{host.rstrip('/')}/api/pause.htm"
+        params = {
+            "id": sensor_id,
+            "action": action,
+            **auth_params
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url_pause, params=params, ssl=False) as resp:
+                if resp.status != 200:
+                    raise Exception(f"HTTP {resp.status}")
 
 def run_server():
     # Asegurar que el servidor se pueda reiniciar liberando el socket rápidamente
