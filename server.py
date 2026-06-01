@@ -50,13 +50,17 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
             username = params.get("username")
             passhash = params.get("passhash")
             password = params.get("password")
-            group_id = params.get("group_id", "2722")  # Por defecto grupo 2722 de tu configuración
+            group_id = params.get("group_id")
+            if group_id is not None:
+                group_id = str(group_id).strip()
+            else:
+                group_id = ""
 
             if not host or not username or (not passhash and not password):
                 self.send_error_response(400, "Faltan parámetros obligatorios: host, username y (passhash o password)")
                 return
 
-            print(f"[*] Iniciando auditoría asíncrona para: {host} (Usuario: {username}, Grupo ID: {group_id})")
+            print(f"[*] Iniciando auditoría asíncrona para: {host} (Usuario: {username}, Grupo ID: {group_id if group_id else 'General/Global (Toda la instancia)'})")
             
             try:
                 # Correr el bucle asíncrono para esta petición de forma síncrona
@@ -350,12 +354,13 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
                 }
                 sensores_finales.append(sensor_info)
 
-                # Si no tiene límites activos, se agrega a hallazgos de "sin umbral"
+                 # Si no tiene límites activos, se agrega a hallazgos de "sin umbral"
                 if not limites_del_sensor:
                     sensores_sin_umbrales.append({
                         "id": s_id,
                         "name": sensor.get("sensor", ""),
                         "device": nombre_equipo,
+                        "group": sensor.get("group", ""),
                         "lastvalue": sensor.get("lastvalue", ""),
                         "limitmode": "0" # Inactivo
                     })
@@ -430,7 +435,8 @@ class PRTGAuditHandler(http.server.BaseHTTPRequestHandler):
     def guardar_csv_local(self, sensores, triggers, group_id):
         """Exporta un reporte CSV con timestamp localmente en el servidor para control histórico."""
         fecha_hora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        nombre_archivo = f"Auditoria_Sensores_{group_id}_{fecha_hora}.csv"
+        grp_label = group_id if group_id else "General"
+        nombre_archivo = f"Auditoria_Sensores_{grp_label}_{fecha_hora}.csv"
         
         # Crear carpeta de reportes si no existe
         reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reportes_historicos")

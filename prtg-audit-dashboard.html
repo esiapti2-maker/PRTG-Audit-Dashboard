@@ -1156,6 +1156,9 @@
         <label class="field">Contraseña o Passhash de la Cuenta
           <input class="inp" id="mSecret" type="password" placeholder="Contraseña normal o Passhash numérico">
         </label>
+        <label class="field">ID del Grupo de Auditoría (Opcional)
+          <input class="inp" id="mGroup" type="text" placeholder="Ej: 2722 (Vacío para General/Toda la instancia)">
+        </label>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="modalCancel">Cancelar</button>
@@ -1269,12 +1272,12 @@
                 <label class="field">Contraseña o Passhash
                   <input class="inp" id="secretInput" type="password" placeholder="Ingresa tu contraseña o passhash">
                 </label>
-                <label class="field">ID del Grupo
-                  <input class="inp" id="groupInput" type="text" placeholder="Default: 2722 (Grupo)">
+                <label class="field">ID de Grupo (Vacío = General)
+                  <input class="inp" id="groupInput" type="text" placeholder="Vacío para todo el PRTG">
                 </label>
               </div>
             </div>
-            <p class="hint">El Host y el Usuario se cargan automáticamente al seleccionar la instancia. Confirma o ingresa tu Contraseña o Passhash para comenzar.</p>
+            <p class="hint">El Host, Usuario y Grupo se cargan automáticamente. Confirma tu Contraseña o Passhash para comenzar. Deja el ID de Grupo vacío para auditar <strong>toda la instancia</strong> de forma global.</p>
             <div style="display:flex; gap:var(--space-2); margin-top:var(--space-2)">
               <button class="btn btn-primary" style="flex:1" id="connectBtn2"><i data-lucide="plug-zap"></i> Iniciar Auditoría</button>
               <button class="btn btn-secondary" id="loadDemoBtn2"><i data-lucide="database-zap"></i> Demo</button>
@@ -1371,13 +1374,14 @@
                   <tr>
                     <th>Sensor</th>
                     <th>Dispositivo</th>
+                    <th>Grupo</th>
                     <th>Último Valor</th>
                     <th>Limit mode</th>
                   </tr>
                 </thead>
                 <tbody id="limitsTable">
                   <tr>
-                    <td colspan="4">
+                    <td colspan="5">
                       <div class="empty">
                         <i data-lucide="shield-check" size="24" style="color:var(--color-success)"></i>
                         <span>Sin hallazgos</span>
@@ -1749,11 +1753,12 @@ python server.py
     function renderLimits() {
       const tbody = document.getElementById('limitsTable');
       if (state.noLimits.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4"><div class="empty"><i data-lucide="check-circle-2" style="color:var(--color-success)"></i><span>Todos los sensores activos cuentan con umbrales configurados.</span></div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><i data-lucide="check-circle-2" style="color:var(--color-success)"></i><span>Todos los sensores activos cuentan con umbrales configurados.</span></div></td></tr>`;
       } else {
         tbody.innerHTML = state.noLimits.map(s => `<tr>
           <td><strong>${esc(s.name)}</strong></td>
           <td>${esc(s.device)}</td>
+          <td><span style="color:var(--color-text-muted)">${esc(s.group)}</span></td>
           <td><code style="font-family:var(--font-mono)">${esc(s.lastvalue)}</code></td>
           <td><span class="badge badge-warning">limitmode = ${esc(s.limitmode)}</span></td>
         </tr>`).join('');
@@ -1879,7 +1884,7 @@ python server.py
         document.getElementById('hostInput').value = act.host || '';
         document.getElementById('userInput').value = act.user || 'e.siapti2';
         document.getElementById('secretInput').value = act.secret || '';
-        document.getElementById('groupInput').value = act.group || '2722';
+        document.getElementById('groupInput').value = act.group || '';
         
         document.getElementById('topbarTitle').textContent = `PRTG Audit — ${act.name}`;
         document.getElementById('topbarSub').textContent = act.host || 'Host no definido';
@@ -1921,6 +1926,7 @@ python server.py
       document.getElementById('mHost').value = inst?.host || '';
       document.getElementById('mUser').value = inst?.user || 'e.siapti2';
       document.getElementById('mSecret').value = inst?.secret || '';
+      document.getElementById('mGroup').value = inst?.group || '';
       
       document.getElementById('modalTitle').textContent = inst
         ? `Configurar Slot ${idx + 1} — ${inst.name}`
@@ -1946,7 +1952,7 @@ python server.py
         return;
       }
       
-      const prevGroup = instances[editIdx]?.group || "";
+      const prevGroup = document.getElementById('mGroup').value.trim();
       instances[editIdx] = {
         name,
         host,
@@ -1982,7 +1988,7 @@ python server.py
       const host = document.getElementById('hostInput').value.trim() || (inst?.host || '');
       const username = document.getElementById('userInput').value.trim() || (inst?.user || 'e.siapti2');
       const secret = document.getElementById('secretInput').value.trim() || (inst?.secret || '');
-      const groupId = document.getElementById('groupInput').value.trim() || '2722';
+      const groupId = document.getElementById('groupInput').value.trim();
 
       if (!host || !secret || !username) {
         alert("La instancia seleccionada no tiene Host, Usuario o Contraseña/Passhash configurados.\nCompleta las credenciales primero.");
@@ -2008,8 +2014,8 @@ python server.py
         // Hacemos llamada POST a nuestro endpoint del backend local en localhost:5000
         const endpoint = "/api/audit";
         
-        lText.textContent = "Auditando infraestructura PRTG...";
-        lSub.textContent = "Ejecutando consultas asíncronas para sensores, dispositivos, triggers y límites...";
+        lText.textContent = groupId ? "Auditando Grupo " + groupId + " en PRTG..." : "Auditando Toda la Instancia PRTG (Auditoría Global)...";
+        lSub.textContent = groupId ? "Ejecutando consultas asíncronas para el grupo seleccionado..." : "Descargando todos los sensores, dispositivos, triggers y límites globalmente. Esto puede tomar unos segundos...";
 
         // Detectar si el secreto es un passhash (secuencia de dígitos) o una contraseña
         const isPasshash = /^\d+$/.test(secret);
