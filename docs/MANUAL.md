@@ -1,6 +1,6 @@
 # Manual de Usuario — PRTG Audit Dashboard
 
-> **Versión:** 1.0.0 · **Última actualización:** Mayo 2026  
+> **Versión:** 1.0.0 · **Última actualización:** Junio 2026  
 > Herramienta de auditoría técnica para instancias de PRTG Network Monitor
 
 ---
@@ -70,6 +70,7 @@ El PRTG Audit Dashboard se compone de **dos herramientas independientes** que se
 | Múltiples instancias PRTG (multi-sitio) | Script Python |
 | PRTG en red interna sin acceso directo del browser | Script Python desde servidor |
 | Historial acumulado de reportes | Script Python (CSV por fecha) |
+| PRTG con certificado SSL autofirmado | Script Python con `--no-ssl-verify` |
 
 ---
 
@@ -87,7 +88,17 @@ curl -O https://raw.githubusercontent.com/esiapti2-maker/PRTG-Audit-Dashboard/ma
 git clone https://github.com/esiapti2-maker/PRTG-Audit-Dashboard.git
 ```
 
-Luego abre `prtg-audit-dashboard.html` con doble clic en cualquier browser moderno (Chrome, Firefox, Edge). No necesita servidor web.
+Luego abre `prtg-audit-dashboard.html` con doble clic en cualquier browser moderno (Chrome 90+, Firefox 88+, Edge 90+). No necesita servidor web.
+
+**Navegadores compatibles:**
+
+| Navegador | Soporte |
+|---|---|
+| Chrome 90+ | ✅ Completo |
+| Edge 90+ | ✅ Completo |
+| Firefox 88+ | ✅ Completo |
+| Safari 15+ | ✅ Completo |
+| IE 11 | ❌ No soportado |
 
 ### 2.2 Formulario de conexión
 
@@ -227,7 +238,7 @@ python scripts/prtg_audit.py \
 
 Esto genera un archivo:
 ```
-./reportes/prtg_audit_Guadalajara_20260511_170000.csv
+./reportes/prtg_audit_Guadalajara_20260601_170000.csv
 ```
 
 ### 3.3 Parámetros disponibles
@@ -243,7 +254,18 @@ Esto genera un archivo:
 | `--no-ssl-verify` | ❌ | Deshabilitar verificación SSL | (flag, sin valor) |
 | `--modules` | ❌ | Módulos a ejecutar (separados por coma) | `sensors,users` |
 
-**Ejemplo con todos los parámetros:**
+**Ejemplo con PRTG de certificado autofirmado:**
+```bash
+python scripts/prtg_audit.py \
+  --host https://prtg.local \
+  --user auditoria \
+  --passhash ABC123DEF456 \
+  --site-name "Lab-Interno" \
+  --output ./reportes \
+  --no-ssl-verify
+```
+
+**Ejemplo completo con todos los parámetros:**
 ```bash
 python scripts/prtg_audit.py \
   --host https://prtg.empresa.com \
@@ -340,7 +362,7 @@ Browser abre el HTML
        │  Al hacer "Exportar CSV" → datos GUARDADOS en tu disco
        ▼
   Tu disco local
-  prtg_audit_20260511_170523.csv
+  prtg_audit_20260601_170523.csv
 ```
 
 **El archivo HTML no crece.** Cada vez que abres el dashboard es exactamente el mismo archivo. Los datos que trae de PRTG son temporales.
@@ -357,14 +379,14 @@ Ejecución del script
   Procesamiento en Python
        │
        ▼
-  /reportes/prtg_audit_SITIO_FECHA.csv  ← SE ACUMULA uno por ejecución
-  /reportes/prtg_audit_SITIO_FECHA.csv
-  /reportes/prtg_audit_SITIO_FECHA.csv
+  /reportes/prtg_audit_SITIO_20260601.csv  ← SE ACUMULA uno por ejecución
+  /reportes/prtg_audit_SITIO_20260608.csv
+  /reportes/prtg_audit_SITIO_20260615.csv
        ↑
-  Sí va creciendo como historial
+  Sí va creciendo como historial por fecha
 ```
 
-Con el script Python **sí se acumula un historial** porque cada ejecución genera un nuevo CSV con timestamp diferente. Puedes tener años de histórico comparando los reportes por fecha.
+Con el script Python **sí se acumula un historial** porque cada ejecución genera un nuevo CSV con timestamp diferente.
 
 ---
 
@@ -443,9 +465,9 @@ Riesgo: ALTO — el servidor puede llegar al 100% sin que nadie sea notificado
 
 **Problemas que detecta:**
 
-1. **Plantilla inactiva** — existe pero está deshabilitada. Si todos los sensores la usan y está deshabilitada, nadie recibe alertas.
-2. **Sin disparador asignado** — la plantilla está activa pero ningún sensor o dispositivo la tiene configurada como receptor de alertas.
-3. **Sin método de entrega** — plantilla sin email, SMS, webhook ni script configurado. Aparentemente activa pero no hace nada.
+1. **Plantilla inactiva** — existe pero está deshabilitada.
+2. **Sin disparador asignado** — la plantilla está activa pero ningún sensor o dispositivo la tiene configurada.
+3. **Sin método de entrega** — plantilla sin email, SMS, webhook ni script configurado.
 
 ---
 
@@ -495,8 +517,6 @@ El CSV exportado está en **UTF-8 con BOM** para compatibilidad con Excel en Win
 4. Aceptar
 
 ### Estructura del CSV
-
-El archivo tiene secciones separadas por una fila de encabezado en mayúsculas:
 
 ```
 ## RESUMEN EJECUTIVO ##
@@ -548,7 +568,11 @@ docker-compose up -d
 
 **Solución en el script Python:**
 ```bash
-python scripts/prtg_audit.py --host https://prtg.local --user x --passhash y --no-ssl-verify
+python scripts/prtg_audit.py \
+  --host https://prtg.local \
+  --user auditoria \
+  --passhash TU_PASSHASH \
+  --no-ssl-verify
 ```
 
 > ⚠️ Usar `--no-ssl-verify` solo en redes internas de confianza.
@@ -640,14 +664,14 @@ PRTG_HASH=TU_PASSHASH_AQUI
 | **Umbral (Threshold)** | Límites configurados en un sensor que definen cuándo el valor es normal (verde), advertencia (amarillo) o error (rojo). Sin umbral, el sensor siempre aparece verde sin importar el valor medido. |
 | **CORS** | Cross-Origin Resource Sharing. Política de seguridad de los browsers que bloquea solicitudes HTTP a dominios diferentes al origen de la página. Afecta al dashboard web pero no al script Python. |
 | **Passhash vs Password** | La contraseña es el acceso principal a la interfaz web. El passhash es un hash derivado de la contraseña, exclusivo para la API, que permite autenticación sin exponer la contraseña real. |
-| **Estado Down** | Sensor que no puede obtener datos o cuyo valor supera el umbral de error. Genera alerta si las notificaciones están configuradas. |
-| **Estado Warning** | Sensor cuyo valor supera el umbral de advertencia pero no el de error. Indica una situación a vigilar. |
-| **Estado Paused** | Sensor deshabilitado manualmente (o por una ventana de mantenimiento). No genera alertas ni consume licencia. |
+| **Estado Down** | Sensor que no puede obtener datos o cuyo valor supera el umbral de error. |
+| **Estado Warning** | Sensor cuyo valor supera el umbral de advertencia pero no el de error. |
+| **Estado Paused** | Sensor deshabilitado manualmente. No genera alertas ni consume licencia. |
 | **Estado Unknown** | Sensor que nunca ha sido ejecutado o cuyo resultado no puede determinarse. |
-| **Score de auditoría** | Puntaje de 0-100% calculado evaluando 8 criterios de buenas prácticas de PRTG. Indica el nivel de madurez del monitoreo. |
-| **Multi-sitio** | Capacidad del script Python para auditar varias instancias PRTG (sitios físicos o lógicos) en una sola ejecución, generando un reporte consolidado. |
+| **Score de auditoría** | Puntaje de 0-100% calculado evaluando 8 criterios de buenas prácticas de PRTG. |
+| **Multi-sitio** | Capacidad del script Python para auditar varias instancias PRTG en una sola ejecución, generando un reporte consolidado. |
 | **SSL Verify** | Verificación del certificado SSL del servidor PRTG. Deshabilitarla (`--no-ssl-verify`) es necesario cuando PRTG usa certificados autofirmados. Solo recomendado en redes internas. |
 
 ---
 
-*Manual generado para PRTG Audit Dashboard v1.0.0 — Mayo 2026*
+*Manual generado para PRTG Audit Dashboard v1.0.0 — Junio 2026*
